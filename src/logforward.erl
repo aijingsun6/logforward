@@ -1,0 +1,4 @@
+-module(logforward).
+
+%% API
+-export([]).

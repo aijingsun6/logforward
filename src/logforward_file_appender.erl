@@ -9,6 +9,27 @@
   terminate/2
 ]).
 
+-export([
+  start/2,
+  loop/2
+]).
+
+-define(CONFIG_DIR, dir).
+-define(DIR_DEFAULT, "logs").
+
+-define(ROTATE_TYPE_DATA_SIZE, data_size).
+-define(ROTATE_TYPE_MSG_SIZE, msg_size).
+-define(ROTATE_TYPE_DEFAULT, ?ROTATE_TYPE_MSG_SIZE).
+
+%% 10M
+-define(ROTATE_DATA_SIZE_DEFAULT, 1024 * 1024 * 10).
+%% 10w
+-define(ROTATE_MSG_SIZE_DEFAULT, 10000 * 10).
+
+%% 最多保留多少文件，默认10个 xxx.0.log .... xxx.l0.log
+-define(CONFIG_FILE_MAX, max).
+-define(FILE_MAX_DEFAULT, 10).
+
 -record(state, {
   sink,
   name,
@@ -22,7 +43,8 @@
   file_rotate_type,
   file_rotate_size,
   file_max,
-  file_nth
+  file_acc = 0,
+  file_pid
 }).
 
 init(Sink, Name, Options) ->
@@ -32,15 +54,19 @@ init(Sink, Name, Options) ->
                     {_, Str} -> Formatter:parse_pattern(Str);
                     false -> ?APPENDER_FORMATTER_CONFIG_DEFAULT
                   end,
-  Dir = proplists:get_value(?CONFIG_DIR, Options, ?FILE_APPENDER_DIR_DEFAULT),
-  FilePatternConf = case lists:keyfind(?CONFIG_FILE_PATTERN, 1, Options) of
+  Dir = proplists:get_value(?CONFIG_DIR, Options, ?DIR_DEFAULT),
+  FilePatternConf = case lists:keyfind(file, 1, Options) of
                       {_, FileStr} -> Formatter:parse_pattern(FileStr);
-                      false -> ?FILE_APPENDER_PATTERN_CONF(lists:flatten(io_lib:format("~p.~p", [Sink, Name])))
+                      false -> file_pattern_conf(Sink, Name)
                     end,
-  FileRotateType = proplists:get_value(?CONFIG_FILE_ROTATE_TYPE, Options, ?FILE_APPENDER_FILE_ROTATE_TYPE_DEFAULT),
-  FileRotateSize = proplists:get_value(?CONFIG_FILE_ROTATE_SIZE, Options, ?FILE_APPENDER_FILE_ROTATE_SIZE_DEFAULT),
-  FileMax = proplists:get_value(?CONFIG_FILE_MAX, Options, ?FILE_APPENDER_FILE_MAX_DEFAULT),
-  {ok, #state{
+  RotateType = proplists:get_value(rotate_type, Options, ?ROTATE_TYPE_DEFAULT),
+  RotateSize = case RotateType of
+                 ?ROTATE_TYPE_DATA_SIZE -> proplists:get_value(rotate_size, Options, ?ROTATE_DATA_SIZE_DEFAULT);
+                 ?ROTATE_TYPE_MSG_SIZE -> proplists:get_value(rotate_size, Options, ?ROTATE_MSG_SIZE_DEFAULT)
+               end,
+  FileMax = proplists:get_value(?CONFIG_FILE_MAX, Options, ?FILE_MAX_DEFAULT),
+  file:make_dir(Dir),
+  State = #state{
     sink = Sink,
     name = Name,
     level = Level,
@@ -48,13 +74,128 @@ init(Sink, Name, Options) ->
     formatter = Formatter, formatter_config = FormatterConf,
     dir = Dir,
     file_pattern_conf = FilePatternConf,
-    file_rotate_type = FileRotateType,
-    file_rotate_size = FileRotateSize,
+    file_rotate_type = RotateType,
+    file_rotate_size = RotateSize,
     file_max = FileMax
-  }}.
+  },
+  State2 = open_file(State),
+  {ok, State2}.
 
-handle_msg(_Msg, State) ->
-  {ok, State}.
+handle_msg(Msg, #state{formatter = Formatter, formatter_config = FormatterConf, nmsg = N} = State) ->
+  N2 = N + 1,
+  Extra = [{nmsg, N2}],
+  case catch Formatter:format(Msg, FormatterConf, Extra) of
+    Str when is_list(Str) ->
+      Bin = unicode:characters_to_binary(Str),
+      State2 = State#state{nmsg = N2},
+      State3 = do_log(Bin, State2),
+      {ok, State3};
+    _ ->
+      {ok, State}
+  end.
 
 terminate(_Reason, _State) ->
   ok.
+
+file_pattern_conf(Sink, Name) ->
+  H = lists:flatten(io_lib:format("~p.~p.", [Sink, Name])),
+  [H, date, ".", nth, ".log"].
+
+open_file(#state{dir = Dir, file_pattern_conf = FPC, formatter = Formatter, file_rotate_type = FRT} = State) ->
+  FileName = file_name(Dir, Formatter, FPC, [{nth, 0}]),
+  FileAcc =
+    case FRT of
+      ?ROTATE_TYPE_DATA_SIZE -> filelib:file_size(FileName);
+      ?ROTATE_TYPE_MSG_SIZE -> file_lines(FileName)
+    end,
+  Pid = start(FileName, erlang:self()),
+  State#state{file_acc = FileAcc, file_pid = Pid}.
+
+file_name(Dir, Formatter, FPC, Opt) ->
+  filename:join([Dir, Formatter:format_file(FPC, Opt)]).
+
+file_lines(FileName) ->
+  case file:open(FileName, [read, {encoding, utf8}]) of
+    {ok, IoDevice} -> file_lines(IoDevice, 0);
+    {error, _} -> 0
+  end.
+
+file_lines(IoDevice, Acc) ->
+  case file:read_line(IoDevice) of
+    {ok, _Data} -> file_lines(IoDevice, Acc + 1);
+    eof -> file:close(IoDevice), Acc;
+    {error, _} -> file:close(IoDevice), Acc
+  end.
+
+
+start(FileName, Parent) ->
+  {ok, IoDevice} = file:open(FileName, [append, {encoding, utf8}]),
+  erlang:spawn(fun() -> start_i(IoDevice, Parent) end).
+
+start_i(IoDevice, Parent) ->
+  Ref = erlang:monitor(process, Parent),
+  loop(IoDevice, Ref).
+
+loop(IoDevice, MonitorRef) ->
+  receive
+    {append, Bin} -> file:write(IoDevice, Bin), ?MODULE:loop(IoDevice, MonitorRef);
+    {'DOWN', MonitorRef, _, _, _} -> file:close(IoDevice), ok;
+    close -> file:close(IoDevice), ok;
+    _ -> ?MODULE:loop(IoDevice, MonitorRef)
+  end.
+
+do_log(Bin, #state{dir = Dir,
+  formatter = Formatter,
+  file_pattern_conf = FilePatternConf,
+  file_rotate_type = RotateType,
+  file_rotate_size = RotateSize,
+  file_max = FileMax,
+  file_acc = FileAcc,
+  file_pid = Pid} = State) ->
+  Add = case RotateType of
+          ?ROTATE_TYPE_DATA_SIZE -> erlang:byte_size(Bin);
+          ?ROTATE_TYPE_MSG_SIZE -> 1
+        end,
+  case FileAcc < RotateSize of
+    false ->
+      % rotate file
+      rotate(FileMax, FileMax, Dir, FilePatternConf, Formatter),
+      Pid ! close,
+      FileName = file_name(Dir, Formatter, FilePatternConf, [{nth, 0}]),
+      NewPid = start(FileName, erlang:self()),
+      NewPid ! {append, Bin},
+      State#state{file_acc = Add, file_pid = NewPid};
+    true ->
+      Pid ! {append, Bin},
+      State#state{file_acc = FileAcc + Add}
+  end.
+
+
+rotate(IDX, MAX, Dir, FilePatternConf, Formatter) when IDX == MAX ->
+  % delete file
+  FileName = file_name(Dir, Formatter, FilePatternConf, [{nth, IDX}]),
+  case filelib:is_file(FileName) of
+    true -> file:delete(FileName);
+    false -> pass
+  end,
+  rotate(IDX - 1, MAX, Dir, FilePatternConf, Formatter);
+rotate(IDX, MAX, Dir, FilePatternConf, Formatter) ->
+  Ori = file_name(Dir, Formatter, FilePatternConf, [{nth, IDX}]),
+  Target = file_name(Dir, Formatter, FilePatternConf, [{nth, IDX + 1}]),
+  case filelib:is_file(Ori) of
+    true ->
+      case Ori == Target of
+        true -> file:delete(Ori);
+        false -> file:rename(Ori, Target)
+      end;
+    false ->
+      pass
+  end,
+  case IDX > 0 of
+    true ->
+      rotate(IDX - 1, MAX, Dir, FilePatternConf, Formatter);
+    false ->
+      % end point
+      ok
+  end.
+

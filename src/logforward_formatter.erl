@@ -7,3 +7,6 @@
 
 %% 将日志格式化成 binary
 -callback format(Msg :: #logforward_msg{}, Config :: term(), Extra :: proplists:proplist()) -> Str :: string().
+
+
+-callback format_file(Config :: term(), Options :: proplists:proplist()) -> Str :: string().

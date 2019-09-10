@@ -4,11 +4,14 @@
 -behaviour(logforward_formatter).
 
 %% API
--export([parse_pattern/1, format/3]).
+-export([parse_pattern/1, format/3, format_file/2]).
 
 parse_pattern(Pattern) -> parse_pattern(Pattern, read_str, []).
 
 format(Msg, Config, Extra) -> format(Config, Msg, Extra, []).
+
+format_file(Config, Options) -> format_file(Config, Options, []).
+
 
 read_token([C | L], Acc) when C >= $a andalso C =< $z ->
   read_token(L, [C | Acc]);
@@ -69,6 +72,22 @@ format([E | L], Msg, Extra, Acc) when is_list(E) ->
   format(L, Msg, Extra, [E | Acc]);
 format([_ | L], Msg, Extra, Acc) ->
   format(L, Msg, Extra, Acc).
+
+
+format_file([], _, Acc) ->
+  lists:flatten(lists:reverse(Acc));
+format_file([nth | L], Options, Acc) ->
+  N = proplists:get_value(nth, Options, 0),
+  format_file(L, Options, [logforward_util:to_string(N) | Acc]);
+format_file([date | L], Options, Acc) ->
+  {Day, _} = calendar:local_time(),
+  V = proplists:get_value(date, Options, Day),
+  format_file(L, Options, [logforward_util:date_to_string(V) | Acc]);
+format_file([E | L], Options, Acc) when is_list(E) ->
+  format_file(L, Options, [E | Acc]);
+format_file([_ | L], Options, Acc) ->
+  format_file(L, Options, Acc).
+
 
 
 

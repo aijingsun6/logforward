@@ -28,13 +28,10 @@
                         ?LOG_LEVEL_NONE -> ?LOG_LEVEL_NONE_INT
                       end).
 
--define(LOG_ENABLE(Level, Limit), Level >= Limit).
-
 -define(CONFIG_CUT_LEVEL, cut_level).
--define(CONFIG_LEVEL, level).
--define(CONFIG_LOG_DIR, dir).
-
 -define(SINK_CUT_LEVEL_DEFAULT, info).
+
+-define(CONFIG_LEVEL, level).
 -define(APPENDER_LEVEL_DEFAULT, info).
 
 -define(APPENDER_CONF_FORMATTER, formatter).
@@ -42,6 +39,26 @@
 
 -define(APPENDER_FORMAT_PATTERN, pattern).
 -define(APPENDER_FORMATTER_CONFIG_DEFAULT, [datetime, " [", level, "] - ", msg, eol]).
+
+-define(CONFIG_DIR, dir).
+-define(FILE_APPENDER_DIR_DEFAULT, "logs").
+
+-define(CONFIG_FILE_PATTERN, file_pattern).
+-define(FILE_APPENDER_PATTERN_CONF(X), [X, ".", nth, ".log"]).
+
+%% 最多保留多少文件，默认10个 xxx.0.log .... xxx.l0.log
+-define(CONFIG_FILE_MAX, max).
+-define(FILE_APPENDER_FILE_MAX_DEFAULT, 10).
+
+-define(CONFIG_FILE_ROTATE_TYPE, rotate_type).
+
+-define(FILE_APPENDER_FILE_ROTATE_TYPE_DATA_SIZE, data_size).
+-define(FILE_APPENDER_FILE_ROTATE_TYPE_MSG_SIZE, msg_size).
+
+-define(FILE_APPENDER_FILE_ROTATE_TYPE_DEFAULT, data_size).
+
+-define(CONFIG_FILE_ROTATE_SIZE, rotate_size).
+-define(FILE_APPENDER_FILE_ROTATE_SIZE_DEFAULT, 1024 * 1024 * 1024).
 
 
 -record(logforward_msg, {

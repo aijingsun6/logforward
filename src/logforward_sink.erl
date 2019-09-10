@@ -51,7 +51,7 @@ msg(Name, #logforward_msg{level = Level} = Msg) ->
 %%%===================================================================
 
 init([Name, Options, Appends]) ->
-  L = install_appender(Appends, Options, []),
+  L = install_appender(Appends, Name, Options, []),
   CutLevel = proplists:get_value(?CONFIG_CUT_LEVEL, Options, ?SINK_CUT_LEVEL_DEFAULT),
   logforward_util:set({Name, ?CONFIG_CUT_LEVEL}, CutLevel),
   {ok, #state{name = Name, options = Options, cut_level = CutLevel, appender = L}}.
@@ -86,13 +86,13 @@ merge_appender_option([{K, V} | L], Acc) ->
     false -> merge_appender_option(L, [{K, V} | Acc])
   end.
 
-install_appender([], _SinkOpt, Acc) -> Acc;
-install_appender([{Name, Mod, Opt} | L], SinkOpt, Acc) ->
+install_appender([], _SinkName, _SinkOpt, Acc) -> Acc;
+install_appender([{Name, Mod, Opt} | L], SinkName, SinkOpt, Acc) ->
   Opt2 = merge_appender_option(SinkOpt, Opt),
   Level = proplists:get_value(?CONFIG_LEVEL, Opt2, ?APPENDER_LEVEL_DEFAULT),
-  {ok, State} = Mod:init(Opt2),
+  {ok, State} = Mod:init(SinkName, Name, Opt2),
   Appender = #appender{name = Name, mod = Mod, options = Opt2, level = Level, state = State},
-  install_appender(L, SinkOpt, [{Name, Appender} | Acc]).
+  install_appender(L, SinkName, SinkOpt, [{Name, Appender} | Acc]).
 
 handle_msg([], _Msg, Acc) -> Acc;
 handle_msg([{Name, #appender{mod = Mod, level = LevelLimit, state = State} = Appender} | L], #logforward_msg{level = Level} = Msg, Acc) ->

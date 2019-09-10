@@ -17,9 +17,13 @@
 -define(CONFIG_DIR, dir).
 -define(DIR_DEFAULT, "logs").
 
+-define(CONFIG_FILE_PATTERN, file_pattern).
+-define(CONFIG_ROTATE_TYPE,rotate_type).
+-define(CONFIG_ROTATE_SIZE,rotate_size).
+
 -define(ROTATE_TYPE_DATA_SIZE, data_size).
 -define(ROTATE_TYPE_MSG_SIZE, msg_size).
--define(ROTATE_TYPE_DEFAULT, ?ROTATE_TYPE_MSG_SIZE).
+-define(ROTATE_TYPE_DEFAULT, ?ROTATE_TYPE_DATA_SIZE).
 
 %% 10M
 -define(ROTATE_DATA_SIZE_DEFAULT, 1024 * 1024 * 10).
@@ -29,6 +33,8 @@
 %% 最多保留多少文件，默认10个 xxx.0.log .... xxx.l0.log
 -define(CONFIG_FILE_MAX, max).
 -define(FILE_MAX_DEFAULT, 10).
+
+
 
 -record(state, {
   sink,
@@ -55,14 +61,14 @@ init(Sink, Name, Options) ->
                     false -> ?APPENDER_FORMATTER_CONFIG_DEFAULT
                   end,
   Dir = proplists:get_value(?CONFIG_DIR, Options, ?DIR_DEFAULT),
-  FilePatternConf = case lists:keyfind(file, 1, Options) of
+  FilePatternConf = case lists:keyfind(?CONFIG_FILE_PATTERN, 1, Options) of
                       {_, FileStr} -> Formatter:parse_pattern(FileStr);
                       false -> file_pattern_conf(Sink, Name)
                     end,
-  RotateType = proplists:get_value(rotate_type, Options, ?ROTATE_TYPE_DEFAULT),
+  RotateType = proplists:get_value(?CONFIG_ROTATE_TYPE, Options, ?ROTATE_TYPE_DEFAULT),
   RotateSize = case RotateType of
-                 ?ROTATE_TYPE_DATA_SIZE -> proplists:get_value(rotate_size, Options, ?ROTATE_DATA_SIZE_DEFAULT);
-                 ?ROTATE_TYPE_MSG_SIZE -> proplists:get_value(rotate_size, Options, ?ROTATE_MSG_SIZE_DEFAULT)
+                 ?ROTATE_TYPE_DATA_SIZE -> proplists:get_value(?CONFIG_ROTATE_SIZE, Options, ?ROTATE_DATA_SIZE_DEFAULT);
+                 ?ROTATE_TYPE_MSG_SIZE -> proplists:get_value(?CONFIG_ROTATE_SIZE, Options, ?ROTATE_MSG_SIZE_DEFAULT)
                end,
   FileMax = proplists:get_value(?CONFIG_FILE_MAX, Options, ?FILE_MAX_DEFAULT),
   file:make_dir(Dir),

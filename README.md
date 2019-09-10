@@ -24,7 +24,29 @@ logforward 是一个erlang高性能的日志框架
 1. 仍然通过gen_event来做中心点来分发日志，但是串行的处理都是异步的
 2. 如果想要限流，那么可以通过额外的计数器，比如IO的积累量，而不是靠gen_event的消息的累计量
 
+### 日志的格式 
+| name | note | example | 
+| --- | --- | --- |
+| module | 模块名称 |  |
+| date | 日期 | yyyy-MM-dd |
+| time | 时间 | hh:mm:ss.SSS |
+| datetime | 时间 | yyyy-MM-dd hh:mm:ss.SSS |
+| msg | 消息体 | |
+| eol | 换行符 | "\r\n" |
+| line | 行号 | |
+| level | 日志等级 | DEBUG,INFO...|
+| pid  | 进程名称 | |
+| node | 节点 | |
+| metadata | 额外信息 | | 
+| nmsg | 第N条日志 ||
+| nth | 第N | |
+```
+例子：
+%datetime [ %level ] - %msg%eol
+格式化后的结果就是这个样子
+2019-09-10 12:00:00.000 [INFO] - hello\r\n
 
+```
 
 
 

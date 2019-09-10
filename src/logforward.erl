@@ -59,5 +59,43 @@ fatal(Sink, Format, Args, MetaData) when is_atom(Sink) ->
   log(Sink, ?LOG_LEVEL_FATAL, Format, Args, MetaData).
 
 log(Sink, Level, Format, Args, MetaData) ->
-  Msg = #logforward_msg{level = Level, metadata = MetaData, format = Format, args = Args},
-  logforward_sink:msg(Sink, Msg).
+  Msg = #logforward_msg{level = Level, format = Format, args = Args},
+  Msg2 = parse_msg([module, line, pid, node], MetaData, Msg),
+  Msg3 = Msg2#logforward_msg{datetime = calendar:local_time(), timestamp_ms = timestamp_ms()},
+  logforward_sink:msg(Sink, Msg3).
+
+parse_del_opt(Key, Options, Def) ->
+  case lists:keyfind(Key, 1, Options) of
+    {_, V} -> {V, lists:keydelete(Key, 1, Options)};
+    false -> {Def, Options}
+  end.
+
+proc_name() ->
+  case process_info(self(), registered_name) of
+    {registered_name, Name} ->
+      Name;
+    [] ->
+      self()
+  end.
+parse_msg([], MetaData, Acc) -> Acc#logforward_msg{metadata = MetaData};
+parse_msg([module | L], MetaData, Acc) ->
+  {V, MetaData2} = parse_del_opt(module, MetaData, none),
+  parse_msg(L, MetaData2, Acc#logforward_msg{module = V});
+parse_msg([line | L], MetaData, Acc) ->
+  {V, MetaData2} = parse_del_opt(line, MetaData, 0),
+  parse_msg(L, MetaData2, Acc#logforward_msg{line = V});
+parse_msg([pid | L], MetaData, Acc) ->
+  {V, MetaData2} = parse_del_opt(pid, MetaData, proc_name()),
+  parse_msg(L, MetaData2, Acc#logforward_msg{pid = V});
+parse_msg([node | L], MetaData, Acc) ->
+  {V, MetaData2} = parse_del_opt(node, MetaData, node()),
+  parse_msg(L, MetaData2, Acc#logforward_msg{node = V});
+parse_msg(_, MetaData, Acc) ->
+  Acc#logforward_msg{metadata = MetaData}.
+
+timestamp_ms() ->
+  {Meg, Sec, Micro} = os:timestamp(),
+  Meg * 1000 * 1000 * 1000 + Sec * 1000 + Micro div 1000.
+
+
+

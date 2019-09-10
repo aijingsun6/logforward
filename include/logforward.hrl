@@ -34,8 +34,17 @@
 -define(CONFIG_LEVEL, level).
 -define(CONFIG_LOG_DIR, dir).
 
+-define(SINK_CUT_LEVEL_DEFAULT, info).
+-define(APPENDER_LEVEL_DEFAULT, info).
+
 -record(logforward_msg, {
+  datetime,
+  timestamp_ms,% in ms
+  module,
+  line,
   level,
+  node,
+  pid,
   metadata,
   format,
   args

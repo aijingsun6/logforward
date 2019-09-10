@@ -38,7 +38,7 @@ start_link(Name, Options, Appends) when is_atom(Name) ->
   gen_server:start_link({local, Name}, ?MODULE, [Name, Options, Appends], []).
 
 msg(Name, #logforward_msg{level = Level} = Msg) ->
-  CutLevel = logforward_util:get({Name, ?CONFIG_CUT_LEVEL}, info),
+  CutLevel = logforward_util:get({Name, ?CONFIG_CUT_LEVEL}, ?SINK_CUT_LEVEL_DEFAULT),
   case ?LEVEL2INT(Level) >= ?LEVEL2INT(CutLevel) of
     true ->
       gen_server:cast(Name, {msg, Msg});
@@ -52,7 +52,7 @@ msg(Name, #logforward_msg{level = Level} = Msg) ->
 
 init([Name, Options, Appends]) ->
   L = install_appender(Appends, Options, []),
-  CutLevel = proplists:get_value(?CONFIG_CUT_LEVEL, Options, info),
+  CutLevel = proplists:get_value(?CONFIG_CUT_LEVEL, Options, ?SINK_CUT_LEVEL_DEFAULT),
   logforward_util:set({Name, ?CONFIG_CUT_LEVEL}, CutLevel),
   {ok, #state{name = Name, options = Options, cut_level = CutLevel, appender = L}}.
 
@@ -89,7 +89,7 @@ merge_appender_option([{K, V} | L], Acc) ->
 install_appender([], _SinkOpt, Acc) -> Acc;
 install_appender([{Name, Mod, Opt} | L], SinkOpt, Acc) ->
   Opt2 = merge_appender_option(SinkOpt, Opt),
-  Level = proplists:get_value(?CONFIG_LEVEL, Opt2, info),
+  Level = proplists:get_value(?CONFIG_LEVEL, Opt2, ?APPENDER_LEVEL_DEFAULT),
   {ok, State} = Mod:init(Opt2),
   Appender = #appender{name = Name, mod = Mod, options = Opt2, level = Level, state = State},
   install_appender(L, SinkOpt, [{Name, Appender} | Acc]).

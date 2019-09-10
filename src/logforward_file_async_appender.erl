@@ -5,7 +5,8 @@
 
 -export([
   init/1,
-  msg/2
+  handle_msg/2,
+  terminate/2
 ]).
 
 -record(state, {
@@ -15,5 +16,8 @@
 init(Options) ->
   {ok, #state{options = Options}}.
 
-msg(_Msg, State) ->
+handle_msg(_Msg, State) ->
   {ok, State}.
+
+terminate(_Reason, _State) ->
+  ok.

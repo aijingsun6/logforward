@@ -60,7 +60,7 @@ handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
 handle_cast({msg, Msg}, #state{appender = L} = State) ->
-  L2 = deal_msg(L, Msg, []),
+  L2 = handle_msg(L, Msg, []),
   {noreply, State#state{appender = L2}};
 
 handle_cast(_Request, State) ->
@@ -69,7 +69,8 @@ handle_cast(_Request, State) ->
 handle_info(_Info, State) ->
   {noreply, State}.
 
-terminate(_Reason, _State) ->
+terminate(Reason, #state{appender = L}) ->
+  terminate_appender(L, Reason),
   ok.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -93,11 +94,22 @@ install_appender([{Name, Mod, Opt} | L], SinkOpt, Acc) ->
   Appender = #appender{name = Name, mod = Mod, options = Opt2, level = Level, state = State},
   install_appender(L, SinkOpt, [{Name, Appender} | Acc]).
 
-deal_msg([], _Msg, Acc) -> Acc;
-deal_msg([{Name, #appender{mod = Mod, state = State} = Appender} | L], Msg, Acc) ->
-  {ok, State2} = Mod:msg(Msg, State),
+handle_msg([], _Msg, Acc) -> Acc;
+handle_msg([{Name, #appender{mod = Mod, level = LevelLimit, state = State} = Appender} | L], #logforward_msg{level = Level} = Msg, Acc) ->
+  {ok, State2} =
+    case ?LEVEL2INT(Level) >= ?LEVEL2INT(LevelLimit) of
+      true ->
+        Mod:handle_msg(Msg, State);
+      false ->
+        {ok, State}
+    end,
   Appender2 = Appender#appender{state = State2},
-  deal_msg(L, Msg, [{Name, Appender2} | Acc]).
+  handle_msg(L, Msg, [{Name, Appender2} | Acc]).
+
+terminate_appender([], _Reason) -> ok;
+terminate_appender([{_, #appender{mod = Mod, state = State}} | L], Reason) ->
+  Mod:terminate(Reason, State),
+  terminate_appender(L, Reason).
 
 
 

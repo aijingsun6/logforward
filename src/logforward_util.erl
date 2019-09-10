@@ -11,11 +11,9 @@
 
 %% config get
 get(Key, Default) ->
-  try persistent_term:get({?TBL, Key}) of
+  case catch persistent_term:get({?TBL, Key}) of
+    {'EXIT', _} -> Default;
     Value -> Value
-  catch
-    _ ->
-      Default
   end.
 
 %% config set

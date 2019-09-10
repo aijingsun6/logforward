@@ -1,14 +1,20 @@
 {application, logforward,
- [{description, "An OTP application"},
-  {vsn, "0.0.1"},
-  {registered, []},
-  {mod, {logforward_app, []}},
-  {applications,
-   [kernel,
-    stdlib
-   ]},
-  {env,[]},
-  {modules, []},
-  {licenses, ["Apache 2.0"]},
-  {links, []}
- ]}.
+  [{description, "An OTP application"},
+    {vsn, "0.0.1"},
+    {registered, []},
+    {mod, {logforward_app, []}},
+    {applications,
+      [kernel,
+        stdlib
+      ]},
+    {env, [
+      {sinks, [
+        {logforward_sink, "logs",info,[
+          {logforward_console_appender, [{level,info}]}
+        ]}
+      ]}
+    ]},
+    {modules, []},
+    {licenses, ["Apache 2.0"]},
+    {links, []}
+  ]}.

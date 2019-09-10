@@ -13,7 +13,9 @@
   code_change/3
 ]).
 
--record(state, {}).
+-record(state, {
+  options
+}).
 %%%===================================================================
 %%% gen_event callbacks
 %%%===================================================================
@@ -30,8 +32,8 @@
   {ok, State :: #state{}} |
   {ok, State :: #state{}, hibernate} |
   {error, Reason :: term()}).
-init([]) ->
-  {ok, #state{}}.
+init(Options) ->
+  {ok, #state{options = Options}}.
 
 %%--------------------------------------------------------------------
 %% @private

@@ -1,6 +1,8 @@
 % debug < info < warn < error < fatal < none
--define(DEFAULT_SINK, logforward_sink).
 
+-define(LOGFORWARD, logforward).
+
+-define(DEFAULT_SINK, logforward_sink).
 
 -define(LOG_LEVEL_DEBUG, debug).
 -define(LOG_LEVEL_INFO, info).
@@ -27,3 +29,14 @@
                       end).
 
 -define(LOG_ENABLE(Level, Limit), Level >= Limit).
+
+-define(CONFIG_CUT_LEVEL, cut_level).
+-define(CONFIG_LEVEL, level).
+-define(CONFIG_LOG_DIR, log_dir).
+
+-record(logforward_msg,{
+  level,
+  metadata,
+  format,
+  args
+}).

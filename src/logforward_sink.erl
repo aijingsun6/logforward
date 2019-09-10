@@ -83,6 +83,7 @@ handle_event(_Event, State) ->
   {swap_handler, Reply :: term(), Args1 :: term(), NewState :: #state{},
     Handler2 :: (atom() | {atom(), Id :: term()}), Args2 :: term()} |
   {remove_handler, Reply :: term()}).
+
 handle_call(_Request, State) ->
   Reply = ok,
   {ok, Reply, State}.

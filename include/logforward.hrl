@@ -36,6 +36,8 @@
 
 -define(SINK_CUT_LEVEL_DEFAULT, info).
 -define(APPENDER_LEVEL_DEFAULT, info).
+-define(APPENDER_FORMATTER_DEFAULT, logforward_default_formatter).
+-define(APPENDER_FORMATTER_CONFIG_DEFAULT, [datetime, " [", level, "] - ", msg, eol]).
 
 -record(logforward_msg, {
   datetime,

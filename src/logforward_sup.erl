@@ -1,5 +1,5 @@
 -module(logforward_sup).
-
+-include("logforward.hrl").
 -behaviour(supervisor).
 
 %% API
@@ -15,7 +15,7 @@
 %%====================================================================
 
 start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+  supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
 %%====================================================================
 %% Supervisor callbacks
@@ -26,7 +26,10 @@ start_link() ->
 %% Before OTP 18 tuples must be used to specify a child. e.g.
 %% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
 init([]) ->
-    {ok, {{one_for_all, 0, 1}, []}}.
+  Children = [
+    {?DEFAULT_SINK, {logforward_sink, start_link, [?DEFAULT_SINK]}, permanent, 5000, worker, [logforward_sink]}
+  ],
+  {ok, {{one_for_one, 10, 60}, Children}}.
 
 %%====================================================================
 %% Internal functions

@@ -6,4 +6,4 @@
 -callback parse_pattern(Pattern :: string()) -> {ok, Config :: term()}.
 
 %% 将日志格式化成 binary
--callback format(Msg :: #logforward_msg{}, Config :: term()) -> {ok, Bin :: binary()}.
+-callback format(Msg :: #logforward_msg{}, Config :: term()) -> {ok, Bin :: string()}.

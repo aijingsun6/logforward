@@ -1,140 +1,105 @@
 -module(logforward_sink).
 -author('alking').
-
--behaviour(gen_event).
+-include("logforward.hrl").
+-behaviour(gen_server).
 
 %% API
 -export([
-  start_link/1,
-  add_handler/3
+  start_link/3,
+  msg/2
 ]).
 
-%% gen_event callbacks
+%% gen_server callbacks
 -export([
   init/1,
-  handle_event/2,
-  handle_call/2,
+  handle_call/3,
+  handle_cast/2,
   handle_info/2,
   terminate/2,
   code_change/3
 ]).
 
--record(state, {}).
+-record(appender, {
+  name,
+  mod,
+  options,
+  level,
+  state
+}).
+
+-record(state, {
+  name,
+  options,
+  cut_level,
+  appender = [] % {Name,#appender{}}
+}).
+
+start_link(Name, Options, Appends) when is_atom(Name) ->
+  gen_server:start_link({local, Name}, ?MODULE, [Name, Options, Appends], []).
+
+msg(Name, #logforward_msg{level = Level} = Msg) ->
+  CutLevel = logforward_util:get({Name, ?CONFIG_CUT_LEVEL}, info),
+  case ?LEVEL2INT(Level) >= ?LEVEL2INT(CutLevel) of
+    true ->
+      gen_server:cast(Name, {msg, Msg});
+    false ->
+      pass
+  end.
 
 %%%===================================================================
-%%% gen_event callbacks
+%%% gen_server callbacks
 %%%===================================================================
 
-start_link(Name) ->
-  gen_event:start_link({local, Name}).
+init([Name, Options, Appends]) ->
+  L = install_appender(Appends, Options, []),
+  CutLevel = proplists:get_value(?CONFIG_CUT_LEVEL, Options, info),
+  logforward_util:set({Name, ?CONFIG_CUT_LEVEL}, CutLevel),
+  {ok, #state{name = Name, options = Options, cut_level = CutLevel, appender = L}}.
 
-add_handler(Name,Mod,Args) ->
-  gen_event:add_handler(Name, Mod, Args).
+handle_call(_Request, _From, State) ->
+  {reply, ok, State}.
 
-%%%===================================================================
-%%% gen_event callbacks
-%%%===================================================================
+handle_cast({msg, Msg}, #state{appender = L} = State) ->
+  L2 = deal_msg(L, Msg, []),
+  {noreply, State#state{appender = L2}};
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Whenever a new event handler is added to an event manager,
-%% this function is called to initialize the event handler.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec(init(InitArgs :: term()) ->
-  {ok, State :: #state{}} |
-  {ok, State :: #state{}, hibernate} |
-  {error, Reason :: term()}).
-init([]) ->
-  {ok, #state{}}.
+handle_cast(_Request, State) ->
+  {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Whenever an event manager receives an event sent using
-%% gen_event:notify/2 or gen_event:sync_notify/2, this function is
-%% called for each installed event handler to handle the event.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec(handle_event(Event :: term(), State :: #state{}) ->
-  {ok, NewState :: #state{}} |
-  {ok, NewState :: #state{}, hibernate} |
-  {swap_handler, Args1 :: term(), NewState :: #state{},
-    Handler2 :: (atom() | {atom(), Id :: term()}), Args2 :: term()} |
-  remove_handler).
-handle_event(_Event, State) ->
-  {ok, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Whenever an event manager receives a request sent using
-%% gen_event:call/3,4, this function is called for the specified
-%% event handler to handle the request.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec(handle_call(Request :: term(), State :: #state{}) ->
-  {ok, Reply :: term(), NewState :: #state{}} |
-  {ok, Reply :: term(), NewState :: #state{}, hibernate} |
-  {swap_handler, Reply :: term(), Args1 :: term(), NewState :: #state{},
-    Handler2 :: (atom() | {atom(), Id :: term()}), Args2 :: term()} |
-  {remove_handler, Reply :: term()}).
-
-handle_call(_Request, State) ->
-  Reply = ok,
-  {ok, Reply, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% This function is called for each installed event handler when
-%% an event manager receives any other message than an event or a
-%% synchronous request (or a system message).
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec(handle_info(Info :: term(), State :: #state{}) ->
-  {ok, NewState :: #state{}} |
-  {ok, NewState :: #state{}, hibernate} |
-  {swap_handler, Args1 :: term(), NewState :: #state{},
-    Handler2 :: (atom() | {atom(), Id :: term()}), Args2 :: term()} |
-  remove_handler).
 handle_info(_Info, State) ->
-  {ok, State}.
+  {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Whenever an event handler is deleted from an event manager, this
-%% function is called. It should be the opposite of Module:init/1 and
-%% do any necessary cleaning up.
-%%
-%% @spec terminate(Reason, State) -> void()
-%% @end
-%%--------------------------------------------------------------------
--spec(terminate(Args :: (term() | {stop, Reason :: term()} | stop |
-remove_handler | {error, {'EXIT', Reason :: term()}} |
-{error, term()}), State :: term()) -> term()).
-terminate(_Arg, _State) ->
+terminate(_Reason, _State) ->
   ok.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Convert process state when code is changed
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec(code_change(OldVsn :: term() | {down, term()}, State :: #state{},
-    Extra :: term()) ->
-  {ok, NewState :: #state{}}).
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+merge_appender_option([], Acc) -> Acc;
+merge_appender_option([{K, V} | L], Acc) ->
+  case lists:keyfind(K, 1, Acc) of
+    {_, _} -> merge_appender_option(L, Acc);
+    false -> merge_appender_option(L, [{K, V} | Acc])
+  end.
+
+install_appender([], _SinkOpt, Acc) -> Acc;
+install_appender([{Name, Mod, Opt} | L], SinkOpt, Acc) ->
+  Opt2 = merge_appender_option(SinkOpt, Opt),
+  Level = proplists:get_value(?CONFIG_LEVEL, Opt2, info),
+  {ok, State} = Mod:init(Opt2),
+  Appender = #appender{name = Name, mod = Mod, options = Opt2, level = Level, state = State},
+  install_appender(L, SinkOpt, [{Name, Appender} | Acc]).
+
+deal_msg([], _Msg, Acc) -> Acc;
+deal_msg([{Name, #appender{mod = Mod, state = State} = Appender} | L], Msg, Acc) ->
+  {ok, State2} = Mod:msg(Msg, State),
+  Appender2 = Appender#appender{state = State2},
+  deal_msg(L, Msg, [{Name, Appender2} | Acc]).
+
+
+
+
+

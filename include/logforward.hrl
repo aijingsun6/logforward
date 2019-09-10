@@ -32,9 +32,9 @@
 
 -define(CONFIG_CUT_LEVEL, cut_level).
 -define(CONFIG_LEVEL, level).
--define(CONFIG_LOG_DIR, log_dir).
+-define(CONFIG_LOG_DIR, dir).
 
--record(logforward_msg,{
+-record(logforward_msg, {
   level,
   metadata,
   format,

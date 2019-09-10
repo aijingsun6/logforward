@@ -59,4 +59,5 @@ fatal(Sink, Format, Args, MetaData) when is_atom(Sink) ->
   log(Sink, ?LOG_LEVEL_FATAL, Format, Args, MetaData).
 
 log(Sink, Level, Format, Args, MetaData) ->
-  gen_event:notify(Sink, #logforward_msg{level = Level, metadata = MetaData, format = Format, args = Args}).
+  Msg = #logforward_msg{level = Level, metadata = MetaData, format = Format, args = Args},
+  logforward_sink:msg(Sink, Msg).

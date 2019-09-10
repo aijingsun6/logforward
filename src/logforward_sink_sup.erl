@@ -8,8 +8,7 @@
 
 %% Supervisor callbacks
 -export([
-  init/1,
-  start_child/1
+  init/1
 ]).
 
 -define(SERVER, ?MODULE).
@@ -21,22 +20,16 @@
 start_link() ->
   supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
-start_child(Name) when is_atom(Name) ->
-  supervisor:start_child(?MODULE, [Name]).
-
 init([]) ->
-  RestartStrategy = simple_one_for_one,
-  MaxR = 0,
-  MaxT = 3600,
-  Name = undefined, % As simple_one_for_one is used.
-  StartFunc = {logforward_sink, start_link, []},
-  Restart = permanent, % E.g. should not be restarted
-  Shutdown = 4000,
-  Modules = [logforward_sink],
-  Type = worker,
-  ChildSpec = {Name, StartFunc, Restart, Shutdown, Type, Modules},
-  {ok, {{RestartStrategy, MaxR, MaxT}, [ChildSpec]}}.
+  L = application:get_env(logforward, sinks, []),
+  Children = parse_sinks(L, []),
+  {ok, {{one_for_one, 10, 60}, Children}}.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+parse_sinks([], Acc) -> Acc;
+parse_sinks([{SinkName, SinkOpt, Appends} | L], Acc) ->
+  E = {SinkName, {logforward_sink, start_link, [SinkName, SinkOpt, Appends]}, permanent, 5000, worker, [logforward_sink]},
+  parse_sinks(L, [E | Acc]).

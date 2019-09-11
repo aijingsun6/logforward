@@ -18,8 +18,8 @@
 -define(DIR_DEFAULT, "logs").
 
 -define(CONFIG_FILE_PATTERN, file_pattern).
--define(CONFIG_ROTATE_TYPE,rotate_type).
--define(CONFIG_ROTATE_SIZE,rotate_size).
+-define(CONFIG_ROTATE_TYPE, rotate_type).
+-define(CONFIG_ROTATE_SIZE, rotate_size).
 
 -define(ROTATE_TYPE_DATA_SIZE, data_size).
 -define(ROTATE_TYPE_MSG_SIZE, msg_size).
@@ -144,10 +144,14 @@ start_i(IoDevice, Parent) ->
 
 loop(IoDevice, MonitorRef) ->
   receive
-    {append, Bin} -> file:write(IoDevice, Bin), ?MODULE:loop(IoDevice, MonitorRef);
-    {'DOWN', MonitorRef, _, _, _} -> file:close(IoDevice), ok;
-    close -> file:close(IoDevice), ok;
-    _ -> ?MODULE:loop(IoDevice, MonitorRef)
+    {append, Bin} ->
+      file:write(IoDevice, Bin), ?MODULE:loop(IoDevice, MonitorRef);
+    {'DOWN', MonitorRef, _, _, _} ->
+      file:close(IoDevice), ok;
+    close ->
+      file:close(IoDevice), ok;
+    _ ->
+      ?MODULE:loop(IoDevice, MonitorRef)
   end.
 
 do_log(Bin, #state{dir = Dir,
@@ -165,8 +169,8 @@ do_log(Bin, #state{dir = Dir,
   case FileAcc < RotateSize of
     false ->
       % rotate file
-      rotate(FileMax, FileMax, Dir, FilePatternConf, Formatter),
       Pid ! close,
+      rotate(FileMax, FileMax, Dir, FilePatternConf, Formatter),
       FileName = file_name(Dir, Formatter, FilePatternConf, [{nth, 0}]),
       NewPid = start(FileName, erlang:self()),
       NewPid ! {append, Bin},

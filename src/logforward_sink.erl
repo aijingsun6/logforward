@@ -6,6 +6,8 @@
 %% API
 -export([
   start_link/3,
+  set_cut_level/2,
+  set_appender_level/3,
   msg/2
 ]).
 
@@ -49,7 +51,21 @@ msg(Name, #logforward_msg{level = Level} = Msg) ->
       pass
   end.
 
+set_cut_level(Sink, Level) ->
+  case lists:member(Level, ?LOG_LEVEL_ALL) of
+    true ->
+      gen_server:call(Sink, {set_cut_level, Level}, 5000);
+    false ->
+      {fail, level_error}
+  end.
 
+set_appender_level(Sink, Appender, Level) ->
+  case lists:member(Level, ?LOG_LEVEL_ALL) of
+    true ->
+      gen_server:call(Sink, {set_appender_level, Appender, Level}, 5000);
+    false ->
+      {fail, level_error}
+  end.
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -60,6 +76,18 @@ init([Name, Options, Appends]) ->
   logforward_util:set({Name, ?CONFIG_CUT_LEVEL}, CutLevel),
   {ok, #state{name = Name, options = Options, cut_level = CutLevel, appender = L, nmsg = 0}}.
 
+handle_call({set_cut_level, Level}, _From, #state{name = Name} = State) ->
+  logforward_util:set({Name, ?CONFIG_CUT_LEVEL}, Level),
+  {reply, ok, State#state{cut_level = Level}};
+handle_call({set_appender_level, Appender, Level}, _From, #state{appender = L} = State) ->
+  L2 = case lists:keyfind(Appender, 1, L) of
+         {_, #appender{} = E} ->
+           E2 = E#appender{level = Level},
+           lists:keyreplace(Appender, 1, L, {Appender, E2});
+         false ->
+           L
+       end,
+  {reply, ok, State#state{appender = L2}};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 

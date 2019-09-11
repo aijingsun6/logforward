@@ -6,7 +6,7 @@
 -define(LOG_LEVEL_ERROR, error).
 -define(LOG_LEVEL_FATAL, fatal).
 -define(LOG_LEVEL_NONE, none).
-
+-define(LOG_LEVEL_ALL, [debug, info, warn, error, fatal, none]).
 
 -define(LOG_LEVEL_DEBUG_INT, 1).
 -define(LOG_LEVEL_INFO_INT, 2).

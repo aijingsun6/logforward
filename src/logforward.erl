@@ -2,8 +2,17 @@
 -include("logforward.hrl").
 %% API
 -export([
-  start/0
+  start/0,
+  stop/0,
+  set_cut_level/1,
+  set_cut_level/2,
+  set_appender_level/2,
+  set_appender_level/3,
+  add_sink/3,
+  remove_sink/1
 ]).
+
+
 -export([debug/2, debug/3, debug/4]).
 -export([info/2, info/3, info/4]).
 -export([warn/2, warn/3, warn/4]).
@@ -12,6 +21,19 @@
 
 start() ->
   application:start(?MODULE).
+
+stop() ->
+  application:stop(?MODULE).
+
+set_cut_level(Level) -> logforward_sink:set_cut_level(?DEFAULT_SINK, Level).
+set_cut_level(Sink, Level) -> logforward_sink:set_cut_level(Sink, Level).
+
+set_appender_level(Appender, Level) -> logforward_sink:set_appender_level(?DEFAULT_SINK, Appender, Level).
+set_appender_level(Sink, Appender, Level) -> logforward_sink:set_appender_level(Sink, Appender, Level).
+
+add_sink(SinkName, SinkOpt, Appends) -> logforward_sink_sup:add_sink(SinkName, SinkOpt, Appends).
+
+remove_sink(SinkName) -> logforward_sink_sup:remove_sink(SinkName).
 
 debug(Format, Args) ->
   log(?DEFAULT_SINK, ?LOG_LEVEL_DEBUG, Format, Args, []).

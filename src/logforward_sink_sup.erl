@@ -4,7 +4,11 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([
+  start_link/0,
+  add_sink/3,
+  remove_sink/1
+]).
 
 %% Supervisor callbacks
 -export([
@@ -19,6 +23,14 @@
 
 start_link() ->
   supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+
+add_sink(SinkName, SinkOpt, Appends) ->
+  ChildSpec = {SinkName, {logforward_sink, start_link, [SinkName, SinkOpt, Appends]}, permanent, 5000, worker, [logforward_sink]},
+  supervisor:start_child(?SERVER, ChildSpec).
+
+remove_sink(SinkName)->
+  supervisor:terminate_child(?SERVER,SinkName),
+  supervisor:delete_child(?SERVER,SinkName).
 
 init([]) ->
   L = application:get_env(logforward, sinks, []),

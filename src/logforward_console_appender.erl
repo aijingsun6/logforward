@@ -32,7 +32,7 @@ terminate(_Reason, _State) ->
   ok.
 
 do_log(Msg, Formatter, FormatterConf, Extra) ->
-  case Formatter:format(Msg, FormatterConf, Extra) of
+  case logforward_util:format_msg_with_cache(Msg, Formatter, FormatterConf, Extra) of
     L when erlang:is_list(L) -> io:put_chars(L);
     _ -> pass
   end.

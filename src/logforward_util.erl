@@ -3,6 +3,7 @@
 -include("logforward.hrl").
 
 -define(TBL, logforward_config).
+-define(FORMAT_CACHE_KEY, format_cache).
 %% API
 -export([
   get/2,
@@ -14,6 +15,11 @@
   time_to_string/1,
   time_to_string/2,
   date_to_string/1
+]).
+
+-export([
+  format_msg_with_cache/4,
+  clean_format_cache/0
 ]).
 
 %% config get
@@ -54,3 +60,30 @@ time_to_string({H, MM, S}, MS) ->
 
 date_to_string({Y, M, D}) ->
   lists:flatten(io_lib:format("~B-~2.10.0B-~2.10.0B", [Y, M, D])).
+
+format_msg_with_cache(Msg, Formatter, FormatterConf, Extra) ->
+  NMsg = proplists:get_value(nmsg, Extra, 0),
+  Key = {?FORMAT_CACHE_KEY, {NMsg, Formatter, FormatterConf, Extra}},
+  case erlang:get(Key) of
+    V when is_list(V) ->
+      V;
+    _ ->
+      case catch Formatter:format(Msg, FormatterConf, Extra) of
+        Ret when erlang:is_list(Ret) ->
+          erlang:put(Key, Ret),
+          Ret;
+        _ ->
+          undefined
+      end
+  end.
+
+clean_format_cache() ->
+  L = erlang:get(),
+  clean_format_cache(L).
+
+clean_format_cache([]) -> ok;
+clean_format_cache([{{?FORMAT_CACHE_KEY, _} = Key, _} | L]) ->
+  erlang:erase(Key),
+  clean_format_cache(L);
+clean_format_cache([_ | L]) ->
+  clean_format_cache(L).

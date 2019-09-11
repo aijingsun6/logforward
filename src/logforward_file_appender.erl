@@ -84,7 +84,7 @@ init(Sink, Name, Options) ->
   {ok, State2}.
 
 handle_msg(Msg, Extra, #state{formatter = Formatter, formatter_config = FormatterConf} = State) ->
-  case catch Formatter:format(Msg, FormatterConf, Extra) of
+  case logforward_util:format_msg_with_cache(Msg, Formatter, FormatterConf, Extra) of
     Str when is_list(Str) ->
       Bin = unicode:characters_to_binary(Str),
       State3 = do_log(Bin, State),

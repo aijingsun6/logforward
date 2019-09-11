@@ -9,6 +9,8 @@
   msg/2
 ]).
 
+-export([]).
+
 %% gen_server callbacks
 -export([
   init/1,
@@ -47,6 +49,7 @@ msg(Name, #logforward_msg{level = Level} = Msg) ->
       pass
   end.
 
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -64,6 +67,7 @@ handle_cast({msg, Msg}, #state{appender = L, nmsg = N} = State) ->
   N2 = N + 1,
   Extra = [{nmsg, N2}],
   L2 = handle_msg(L, Msg, Extra, []),
+  logforward_util:clean_format_cache(),
   {noreply, State#state{appender = L2, nmsg = N2}};
 
 handle_cast(_Request, State) ->

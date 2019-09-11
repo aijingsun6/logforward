@@ -21,7 +21,7 @@ logforward 是一个erlang高性能的日志框架
 
 
 ### 设计思路
-1. 仍然通过gen_event来做中心点来分发日志，但是串行的处理都是异步的
+1. 通过sink来串行给appender分发日志，但是appender可以是异步处理的(handle_msg)
 2. 如果想要限流，那么可以通过额外的计数器，比如IO的积累量，而不是靠gen_event的消息的累计量
 
 ### 日志的格式 

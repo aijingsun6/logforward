@@ -31,6 +31,7 @@
   name,
   options,
   cut_level,
+  nmsg,
   appender = [] % {Name,#appender{}}
 }).
 
@@ -54,14 +55,16 @@ init([Name, Options, Appends]) ->
   L = install_appender(Appends, Name, Options, []),
   CutLevel = proplists:get_value(?CONFIG_CUT_LEVEL, Options, ?SINK_CUT_LEVEL_DEFAULT),
   logforward_util:set({Name, ?CONFIG_CUT_LEVEL}, CutLevel),
-  {ok, #state{name = Name, options = Options, cut_level = CutLevel, appender = L}}.
+  {ok, #state{name = Name, options = Options, cut_level = CutLevel, appender = L, nmsg = 0}}.
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
-handle_cast({msg, Msg}, #state{appender = L} = State) ->
-  L2 = handle_msg(L, Msg, []),
-  {noreply, State#state{appender = L2}};
+handle_cast({msg, Msg}, #state{appender = L, nmsg = N} = State) ->
+  N2 = N + 1,
+  Extra = [{nmsg, N2}],
+  L2 = handle_msg(L, Msg, Extra, []),
+  {noreply, State#state{appender = L2, nmsg = N2}};
 
 handle_cast(_Request, State) ->
   {noreply, State}.
@@ -94,17 +97,17 @@ install_appender([{Name, Mod, Opt} | L], SinkName, SinkOpt, Acc) ->
   Appender = #appender{name = Name, mod = Mod, options = Opt2, level = Level, state = State},
   install_appender(L, SinkName, SinkOpt, [{Name, Appender} | Acc]).
 
-handle_msg([], _Msg, Acc) -> Acc;
-handle_msg([{Name, #appender{mod = Mod, level = LevelLimit, state = State} = Appender} | L], #logforward_msg{level = Level} = Msg, Acc) ->
+handle_msg([], _Msg, _Extra, Acc) -> Acc;
+handle_msg([{Name, #appender{mod = Mod, level = LevelLimit, state = State} = Appender} | L], #logforward_msg{level = Level} = Msg, Extra, Acc) ->
   {ok, State2} =
     case ?LEVEL2INT(Level) >= ?LEVEL2INT(LevelLimit) of
       true ->
-        Mod:handle_msg(Msg, State);
+        Mod:handle_msg(Msg, Extra, State);
       false ->
         {ok, State}
     end,
   Appender2 = Appender#appender{state = State2},
-  handle_msg(L, Msg, [{Name, Appender2} | Acc]).
+  handle_msg(L, Msg, Extra, [{Name, Appender2} | Acc]).
 
 terminate_appender([], _Reason) -> ok;
 terminate_appender([{_, #appender{mod = Mod, state = State}} | L], Reason) ->

@@ -5,7 +5,7 @@
 
 -export([
   init/3,
-  handle_msg/2,
+  handle_msg/3,
   terminate/2
 ]).
 
@@ -13,8 +13,7 @@
   sink,
   name,
   formatter,
-  formatter_config,
-  nmsg
+  formatter_config
 }).
 
 init(Sink, Name, Options) ->
@@ -23,13 +22,11 @@ init(Sink, Name, Options) ->
                     {_, Str} -> Formatter:parse_pattern(Str);
                     false -> ?APPENDER_FORMATTER_CONFIG_DEFAULT
                   end,
-  {ok, #state{sink = Sink, name = Name, formatter = Formatter, formatter_config = FormatterConf, nmsg = 0}}.
+  {ok, #state{sink = Sink, name = Name, formatter = Formatter, formatter_config = FormatterConf}}.
 
-handle_msg(Msg, #state{formatter = Formatter, formatter_config = FormatterConf, nmsg = N} = State) ->
-  N2 = N + 1,
-  Extra = [{nmsg, N2}],
+handle_msg(Msg, Extra, #state{formatter = Formatter, formatter_config = FormatterConf} = State) ->
   catch do_log(Msg, Formatter, FormatterConf, Extra),
-  {ok, State#state{nmsg = N2}}.
+  {ok, State}.
 
 terminate(_Reason, _State) ->
   ok.

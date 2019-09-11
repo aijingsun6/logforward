@@ -5,7 +5,7 @@
 
 -export([
   init/3,
-  handle_msg/2,
+  handle_msg/3,
   terminate/2
 ]).
 
@@ -38,7 +38,6 @@
   sink,
   name,
   level,
-  nmsg,
   formatter,
   formatter_config,
 
@@ -74,7 +73,6 @@ init(Sink, Name, Options) ->
     sink = Sink,
     name = Name,
     level = Level,
-    nmsg = 0,
     formatter = Formatter, formatter_config = FormatterConf,
     dir = Dir,
     file_pattern_conf = FilePatternConf,
@@ -85,14 +83,11 @@ init(Sink, Name, Options) ->
   State2 = open_file(State),
   {ok, State2}.
 
-handle_msg(Msg, #state{formatter = Formatter, formatter_config = FormatterConf, nmsg = N} = State) ->
-  N2 = N + 1,
-  Extra = [{nmsg, N2}],
+handle_msg(Msg, Extra, #state{formatter = Formatter, formatter_config = FormatterConf} = State) ->
   case catch Formatter:format(Msg, FormatterConf, Extra) of
     Str when is_list(Str) ->
       Bin = unicode:characters_to_binary(Str),
-      State2 = State#state{nmsg = N2},
-      State3 = do_log(Bin, State2),
+      State3 = do_log(Bin, State),
       {ok, State3};
     _ ->
       {ok, State}

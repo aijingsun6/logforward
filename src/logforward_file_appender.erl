@@ -86,8 +86,7 @@ init(Sink, Name, Options) ->
 handle_msg(Msg, Extra, #state{formatter = Formatter, formatter_config = FormatterConf} = State) ->
   case logforward_util:format_msg_with_cache(Msg, Formatter, FormatterConf, Extra) of
     Str when is_list(Str) ->
-      Bin = unicode:characters_to_binary(Str),
-      State3 = do_log(Bin, State),
+      State3 = do_log(Str, State),
       {ok, State3};
     _ ->
       {ok, State}
@@ -140,8 +139,8 @@ start_i(IoDevice, Parent) ->
 
 loop(IoDevice, MonitorRef) ->
   receive
-    {append, Bin} ->
-      file:write(IoDevice, Bin), ?MODULE:loop(IoDevice, MonitorRef);
+    {append, Str} ->
+      io:put_chars(IoDevice, Str), ?MODULE:loop(IoDevice, MonitorRef);
     {'DOWN', MonitorRef, _, _, _} ->
       file:close(IoDevice), erlang:demonitor(MonitorRef), ok;
     close ->
@@ -150,7 +149,7 @@ loop(IoDevice, MonitorRef) ->
       ?MODULE:loop(IoDevice, MonitorRef)
   end.
 
-do_log(Bin, #state{dir = Dir,
+do_log(Str, #state{dir = Dir,
   formatter = Formatter,
   file_pattern_conf = FilePatternConf,
   file_rotate_type = RotateType,
@@ -159,8 +158,11 @@ do_log(Bin, #state{dir = Dir,
   file_acc = FileAcc,
   file_pid = Pid} = State) ->
   Add = case RotateType of
-          ?ROTATE_TYPE_DATA_SIZE -> erlang:byte_size(Bin);
-          ?ROTATE_TYPE_MSG_SIZE -> 1
+          ?ROTATE_TYPE_DATA_SIZE ->
+            Bin = unicode:characters_to_binary(Str),
+            erlang:byte_size(Bin);
+          ?ROTATE_TYPE_MSG_SIZE ->
+            1
         end,
   case FileAcc < RotateSize of
     false ->
@@ -169,10 +171,10 @@ do_log(Bin, #state{dir = Dir,
       rotate(FileMax, FileMax, Dir, FilePatternConf, Formatter),
       FileName = file_name(Dir, Formatter, FilePatternConf, [{nth, 0}]),
       NewPid = start(FileName, erlang:self()),
-      NewPid ! {append, Bin},
+      NewPid ! {append, Str},
       State#state{file_acc = Add, file_pid = NewPid};
     true ->
-      Pid ! {append, Bin},
+      Pid ! {append, Str},
       State#state{file_acc = FileAcc + Add}
   end.
 

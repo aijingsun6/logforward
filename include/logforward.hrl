@@ -1,7 +1,3 @@
-% debug < info < warn < error < fatal < none
-
--define(LOGFORWARD, logforward).
-
 -define(DEFAULT_SINK, logforward_sink).
 
 -define(LOG_LEVEL_DEBUG, debug).

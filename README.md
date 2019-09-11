@@ -68,8 +68,42 @@ info_2019-09-11.2.log
 ...
 
 ```
+### sink
+```
+格式：
+{sink, [{dir, "logs"}, {cut_level, info}], [
+          {console, logforward_console_appender, [{level, info}]},
+          {info, logforward_file_appender, [{level, info}]}
+        ]}
+        
 
-### 优化点：
+Sink::{SinkName,SinkOptions,[Appender]}
+Appender:: {AppenderName,AppenderModule,AppenderOptions }
+SinkName:: atom()
+SinkOptions::proplist()
+AppenderName::atom()
+AppenderModule::atom()
+AppenderOptions:: proplist()
+```
+##### sink 配置项
+| name | type | note |
+| --- | --- | ---|
+| dir | string() | 目录 |
+| cut_level | atom() | 限制等级|
+
+##### appender 配置项
+| name | type | note |
+| --- | --- | --- |
+| dir | string() | 目录,可覆盖sink的配置 |
+| level | atom() | 限制等级|
+| formatter | atom() | 格式化module|
+| pattern | string() | 日志格式 |
+| file_pattern | string() | 文件日志，文件名格式|
+| rotate_type | type | 日志滚动类别：data_size,msg_size,time|
+| rotate_size | int | 日志得到多少滚动|
+| max | int | 最多保留文件数量 |
+
+### 优化：
 - [x] 异步写文件，减少sink的负担
 - [x] 格式化函数使用缓存，减少计算次数,毕竟同一个人总期望使用相同格式的日志嘛
 

@@ -34,8 +34,6 @@
 -define(CONFIG_FILE_MAX, max).
 -define(FILE_MAX_DEFAULT, 10).
 
-
-
 -record(state, {
   sink,
   name,
@@ -100,6 +98,9 @@ handle_msg(Msg, #state{formatter = Formatter, formatter_config = FormatterConf, 
       {ok, State}
   end.
 
+terminate(_Reason, #state{file_pid = FP}) when is_pid(FP) ->
+  FP ! close,
+  ok;
 terminate(_Reason, _State) ->
   ok.
 
@@ -147,9 +148,9 @@ loop(IoDevice, MonitorRef) ->
     {append, Bin} ->
       file:write(IoDevice, Bin), ?MODULE:loop(IoDevice, MonitorRef);
     {'DOWN', MonitorRef, _, _, _} ->
-      file:close(IoDevice), ok;
+      file:close(IoDevice), erlang:demonitor(MonitorRef), ok;
     close ->
-      file:close(IoDevice), ok;
+      file:close(IoDevice), erlang:demonitor(MonitorRef), ok;
     _ ->
       ?MODULE:loop(IoDevice, MonitorRef)
   end.

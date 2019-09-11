@@ -95,6 +95,10 @@ handle_call({set_appender_level, Appender, Level}, _From, #state{appender = L} =
            L
        end,
   {reply, ok, State#state{appender = L2}};
+
+handle_call({msg, Msg}, _From, State) ->
+  State2 = do_deal_msg(Msg, State),
+  {reply, ok, State2};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 

@@ -46,7 +46,12 @@ msg(Name, #logforward_msg{level = Level} = Msg) ->
   CutLevel = logforward_util:get({Name, ?CONFIG_CUT_LEVEL}, ?SINK_CUT_LEVEL_DEFAULT),
   case ?LEVEL2INT(Level) >= ?LEVEL2INT(CutLevel) of
     true ->
-      gen_server:cast(Name, {msg, Msg});
+      case erlang:whereis(Name) of
+        PID when is_pid(PID) ->
+          gen_server:cast(Name, {msg, Msg});
+        _ ->
+          {error, no_sink}
+      end;
     false ->
       pass
   end.

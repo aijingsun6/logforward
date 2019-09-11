@@ -1,4 +1,4 @@
--define(DEFAULT_SINK, logforward_sink).
+-define(DEFAULT_SINK, sink).
 
 -define(LOG_LEVEL_DEBUG, debug).
 -define(LOG_LEVEL_INFO, info).

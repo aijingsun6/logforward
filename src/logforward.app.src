@@ -9,9 +9,9 @@
       ]},
     {env, [
       {sinks, [
-        {logforward_sink, [{dir, "logs"}, {cut_level, info}], [
+        {sink, [{dir, "logs"}, {cut_level, info}], [
           {console, logforward_console_appender, [{level, info}]},
-          {file_info, logforward_file_appender, [{level, info}]}
+          {info, logforward_file_appender, [{level, info}]}
         ]}
       ]}
     ]},

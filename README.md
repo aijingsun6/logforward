@@ -39,7 +39,7 @@ logforward 是一个erlang高性能的日志框架
 | node | 节点 | |
 | metadata | 额外信息 | | 
 | nmsg | 第N条日志 ||
-| nth | 第N | |
+
 ```
 例子：
 %datetime [ %level ] - %msg%eol
@@ -48,9 +48,34 @@ logforward 是一个erlang高性能的日志框架
 
 ```
 
+### 文件的格式
+| name | note | example |
+| --- | --- | --- |
+| date | 日期 | yyyy-MM-dd |
+| nth | 第N | |
+
+```
+info_%nth.log
+那么文件名称就是
+info_0.log
+info_1.log
+...
+
+info_%date.%nth.log
+info_2019-09-11.0.log
+info_2019-09-11.1.log
+info_2019-09-11.2.log
+...
+
+```
+
 ### 优化点：
 - [x] 异步写文件，减少sink的负担
 - [x] 格式化函数使用缓存，减少计算次数,毕竟同一个人总期望使用相同格式的日志嘛
+
+### TODO:
+- metadata的格式化
+- 限流
 
 
 

@@ -22,8 +22,7 @@ logforward 是一个erlang高性能的日志框架
 
 ### 设计思路
 1. 通过sink来串行给appender分发日志，但是appender可以是异步处理的(handle_msg)
-2. 如果想要限流，那么可以通过额外的计数器，比如IO的积累量，而不是靠gen_event的消息的累计量
-
+2. 限流，通过sink消息队列数量
 ### 日志的格式 
 | name | note | example | 
 | --- | --- | --- |
@@ -90,6 +89,9 @@ AppenderOptions:: proplist()
 | --- | --- | ---|
 | dir | string() | 目录 |
 | cut_level | atom() | 限制等级|
+| garbage_msg | int | 每处理N条消息，进行一次垃圾回收|
+| throttle | int | 消息队列数量达到N,开始限流，知道下次消息队列数量低于这个值 |
+| report_msg | int | 每处理N条消息，上报消息队列长度，用于限流,report_msg << throttle  |
 
 ##### appender 配置项
 | name | type | note |
@@ -109,7 +111,7 @@ AppenderOptions:: proplist()
 
 ### TODO:
 - metadata的格式化
-- 限流
+
 
 
 

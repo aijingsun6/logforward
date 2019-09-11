@@ -23,8 +23,6 @@
   code_change/3
 ]).
 
--define(GARBAGE_PER_MSG, 1024).
-
 -record(appender, {
   name,
   mod,
@@ -35,8 +33,10 @@
 
 -record(state, {
   name,
-  options,
   cut_level,
+  throttle,
+  garbage_msg,
+  report_msg,
   nmsg,
   appender = [] % {Name,#appender{}}
 }).
@@ -50,6 +50,7 @@ msg(Name, #logforward_msg{level = Level} = Msg) ->
     true ->
       case erlang:whereis(Name) of
         PID when is_pid(PID) ->
+          logforward_throttle:check_limit(Name),
           gen_server:cast(Name, {msg, Msg});
         _ ->
           {error, no_sink}
@@ -80,8 +81,20 @@ set_appender_level(Sink, Appender, Level) ->
 init([Name, Options, Appends]) ->
   L = install_appender(Appends, Name, Options, []),
   CutLevel = proplists:get_value(?CONFIG_CUT_LEVEL, Options, ?SINK_CUT_LEVEL_DEFAULT),
+  Throttle = proplists:get_value(?CONFIG_THROTTLE, Options, ?SINK_THROTTLE_DEFAULT),
   logforward_util:set({Name, ?CONFIG_CUT_LEVEL}, CutLevel),
-  {ok, #state{name = Name, options = Options, cut_level = CutLevel, appender = L, nmsg = 0}}.
+  logforward_util:set({Name, ?CONFIG_THROTTLE}, Throttle),
+  Garbage = proplists:get_value(?CONFIG_GARBAGE_MSG, Options, ?SINK_GARBAGE_DEFAULT),
+  Report = proplists:get_value(?CONFIG_REPORT_MSG, Options, ?SINK_REPORT_MSG_DEFAULT),
+  true = Report < Throttle,
+  {ok, #state{name = Name,
+    cut_level = CutLevel,
+    throttle = Throttle,
+    garbage_msg = Garbage,
+    report_msg = Report,
+    appender = L,
+    nmsg = 0
+  }}.
 
 handle_call({set_cut_level, Level}, _From, #state{name = Name} = State) ->
   logforward_util:set({Name, ?CONFIG_CUT_LEVEL}, Level),
@@ -98,6 +111,8 @@ handle_call({set_appender_level, Appender, Level}, _From, #state{appender = L} =
 
 handle_call({msg, Msg}, _From, State) ->
   State2 = do_deal_msg(Msg, State),
+  catch gc(State2),
+  catch report_msg_n(State2),
   {reply, ok, State2};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
@@ -105,9 +120,6 @@ handle_call(_Request, _From, State) ->
 handle_cast({msg, Msg}, State) ->
   State2 = do_deal_msg(Msg, State),
   {noreply, State2};
-handle_cast(garbage_collect, State) ->
-  erlang:garbage_collect(self()),
-  {noreply, State};
 handle_cast(_Request, State) ->
   {noreply, State}.
 
@@ -139,16 +151,27 @@ install_appender([{Name, Mod, Opt} | L], SinkName, SinkOpt, Acc) ->
   Appender = #appender{name = Name, mod = Mod, options = Opt2, level = Level, state = State},
   install_appender(L, SinkName, SinkOpt, [{Name, Appender} | Acc]).
 
-do_deal_msg(Msg, #state{appender = L, nmsg = N, name = Name} = State) ->
+do_deal_msg(Msg, #state{appender = L, nmsg = N} = State) ->
   N2 = N + 1,
   Extra = [{nmsg, N2}],
   L2 = handle_msg(L, Msg, Extra, []),
   logforward_util:clean_format_cache(),
-  case N2 rem ?GARBAGE_PER_MSG of
-    0 -> gen_server:cast(Name, garbage_collect);
-    _ -> pass
-  end,
   State#state{appender = L2, nmsg = N2}.
+
+gc(#state{nmsg = N, garbage_msg = G}) ->
+  case N rem G of
+    0 -> erlang:garbage_collect(self());
+    _ -> pass
+  end.
+
+report_msg_n(#state{nmsg = N, name = Name, throttle = Throttle, report_msg = R}) ->
+  case N rem R of
+    0 ->
+      {message_queue_len, Len} = erlang:process_info(self(), message_queue_len),
+      logforward_throttle:report_msg_n(Name, Throttle, Len);
+    _ ->
+      pass
+  end.
 
 handle_msg([], _Msg, _Extra, Acc) -> Acc;
 handle_msg([{Name, #appender{mod = Mod, level = LevelLimit, state = State} = Appender} | L], #logforward_msg{level = Level} = Msg, Extra, Acc) ->

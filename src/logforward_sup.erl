@@ -29,6 +29,7 @@ start_link() ->
 %% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
 init([]) ->
   Children = [
+    {logforward_throttle, {logforward_throttle, start_link, []}, permanent, 5000, worker, [logforward_throttle]},
     {logforward_sink_sup, {logforward_sink_sup, start_link, []}, permanent, 5000, supervisor, [logforward_sink_sup]}
   ],
   {ok, {{one_for_one, 10, 60}, Children}}.

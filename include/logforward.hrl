@@ -27,6 +27,18 @@
 -define(CONFIG_CUT_LEVEL, cut_level).
 -define(SINK_CUT_LEVEL_DEFAULT, info).
 
+-define(CONFIG_THROTTLE, throttle).
+%% 当sink的消息队列超过一定数量后，block住
+-define(SINK_THROTTLE_DEFAULT, 1024).
+
+%% 每N条消息，进行一次垃圾回收
+-define(CONFIG_GARBAGE_MSG, garbage_msg).
+-define(SINK_GARBAGE_DEFAULT, 1024).
+
+%% 每N条消息，上报消息队列长度
+-define(CONFIG_REPORT_MSG, report_msg).
+-define(SINK_REPORT_MSG_DEFAULT, 256).
+
 -define(CONFIG_LEVEL, level).
 -define(APPENDER_LEVEL_DEFAULT, info).
 
@@ -35,7 +47,6 @@
 
 -define(APPENDER_FORMAT_PATTERN, pattern).
 -define(APPENDER_FORMATTER_CONFIG_DEFAULT, [datetime, " [", level, "] - ", msg, eol]).
-
 
 -record(logforward_msg, {
   datetime,

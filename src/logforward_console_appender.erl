@@ -54,9 +54,11 @@ start_i(Parent) ->
 loop(MonitorRef) ->
   receive
     {append, Str} ->
-      io:put_chars(Str), ?MODULE:loop(MonitorRef);
+      catch io:put_chars(Str),
+      ?MODULE:loop(MonitorRef);
     {append, IO, Str} ->
-      io:put_chars(IO, Str), ?MODULE:loop(MonitorRef);
+      catch io:put_chars(IO, Str),
+      ?MODULE:loop(MonitorRef);
     {'DOWN', MonitorRef, _, _, _} ->
       erlang:demonitor(MonitorRef), ok;
     close ->

@@ -23,6 +23,8 @@
   code_change/3
 ]).
 
+-define(GARBAGE_PER_MSG, 1024).
+
 -record(appender, {
   name,
   mod,
@@ -96,13 +98,12 @@ handle_call({set_appender_level, Appender, Level}, _From, #state{appender = L} =
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
-handle_cast({msg, Msg}, #state{appender = L, nmsg = N} = State) ->
-  N2 = N + 1,
-  Extra = [{nmsg, N2}],
-  L2 = handle_msg(L, Msg, Extra, []),
-  logforward_util:clean_format_cache(),
-  {noreply, State#state{appender = L2, nmsg = N2}};
-
+handle_cast({msg, Msg}, State) ->
+  State2 = do_deal_msg(Msg, State),
+  {noreply, State2};
+handle_cast(garbage_collect, State) ->
+  erlang:garbage_collect(self()),
+  {noreply, State};
 handle_cast(_Request, State) ->
   {noreply, State}.
 
@@ -133,6 +134,17 @@ install_appender([{Name, Mod, Opt} | L], SinkName, SinkOpt, Acc) ->
   {ok, State} = Mod:init(SinkName, Name, Opt2),
   Appender = #appender{name = Name, mod = Mod, options = Opt2, level = Level, state = State},
   install_appender(L, SinkName, SinkOpt, [{Name, Appender} | Acc]).
+
+do_deal_msg(Msg, #state{appender = L, nmsg = N, name = Name} = State) ->
+  N2 = N + 1,
+  Extra = [{nmsg, N2}],
+  L2 = handle_msg(L, Msg, Extra, []),
+  logforward_util:clean_format_cache(),
+  case N2 rem ?GARBAGE_PER_MSG of
+    0 -> gen_server:cast(Name, garbage_collect);
+    _ -> pass
+  end,
+  State#state{appender = L2, nmsg = N2}.
 
 handle_msg([], _Msg, _Extra, Acc) -> Acc;
 handle_msg([{Name, #appender{mod = Mod, level = LevelLimit, state = State} = Appender} | L], #logforward_msg{level = Level} = Msg, Extra, Acc) ->

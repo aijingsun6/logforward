@@ -11,7 +11,7 @@
 
 -export([
   start/2,
-  loop/2
+  loop/3
 ]).
 
 -define(CONFIG_DIR, dir).
@@ -131,22 +131,24 @@ file_lines(IoDevice, Acc) ->
 
 start(FileName, Parent) ->
   {ok, IoDevice} = file:open(FileName, [append, {encoding, utf8}]),
-  erlang:spawn(fun() -> start_i(IoDevice, Parent) end).
+  erlang:spawn(fun() -> start_i(FileName, IoDevice, Parent) end).
 
-start_i(IoDevice, Parent) ->
+start_i(FileName, IoDevice, Parent) ->
   Ref = erlang:monitor(process, Parent),
-  loop(IoDevice, Ref).
+  loop(FileName, IoDevice, Ref).
 
-loop(IoDevice, MonitorRef) ->
+loop(FileName, IoDevice, MonitorRef) ->
   receive
     {append, Str} ->
-      io:put_chars(IoDevice, Str), ?MODULE:loop(IoDevice, MonitorRef);
+      catch io:put_chars(IoDevice, Str),
+      ?MODULE:loop(FileName, IoDevice, MonitorRef);
     {'DOWN', MonitorRef, _, _, _} ->
       file:close(IoDevice), erlang:demonitor(MonitorRef), ok;
     close ->
+      io:format("file ~s close ~n", [FileName]),
       file:close(IoDevice), erlang:demonitor(MonitorRef), ok;
     _ ->
-      ?MODULE:loop(IoDevice, MonitorRef)
+      ?MODULE:loop(FileName, IoDevice, MonitorRef)
   end.
 
 do_log(Str, #state{dir = Dir,

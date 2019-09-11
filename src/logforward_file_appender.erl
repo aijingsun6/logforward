@@ -23,12 +23,17 @@
 
 -define(ROTATE_TYPE_DATA_SIZE, data_size).
 -define(ROTATE_TYPE_MSG_SIZE, msg_size).
+-define(ROTATE_TYPE_TIME, time).
 -define(ROTATE_TYPE_DEFAULT, ?ROTATE_TYPE_DATA_SIZE).
 
 %% 10M
 -define(ROTATE_DATA_SIZE_DEFAULT, 1024 * 1024 * 10).
+
 %% 10w
 -define(ROTATE_MSG_SIZE_DEFAULT, 10000 * 10).
+
+%% rotate per 300 sec when has msg
+-define(ROTATE_TIME_DEFAULT, 300).
 
 %% 最多保留多少文件，默认10个 xxx.0.log .... xxx.l0.log
 -define(CONFIG_FILE_MAX, max).
@@ -45,8 +50,9 @@
   file_pattern_conf,
   file_rotate_type,
   file_rotate_size,
+  rotate_acc,
   file_max,
-  file_acc = 0,
+  file_cnt,
   file_pid
 }).
 
@@ -65,7 +71,8 @@ init(Sink, Name, Options) ->
   RotateType = proplists:get_value(?CONFIG_ROTATE_TYPE, Options, ?ROTATE_TYPE_DEFAULT),
   RotateSize = case RotateType of
                  ?ROTATE_TYPE_DATA_SIZE -> proplists:get_value(?CONFIG_ROTATE_SIZE, Options, ?ROTATE_DATA_SIZE_DEFAULT);
-                 ?ROTATE_TYPE_MSG_SIZE -> proplists:get_value(?CONFIG_ROTATE_SIZE, Options, ?ROTATE_MSG_SIZE_DEFAULT)
+                 ?ROTATE_TYPE_MSG_SIZE -> proplists:get_value(?CONFIG_ROTATE_SIZE, Options, ?ROTATE_MSG_SIZE_DEFAULT);
+                 ?ROTATE_TYPE_TIME -> proplists:get_value(?CONFIG_ROTATE_SIZE, Options, ?ROTATE_TIME_DEFAULT)
                end,
   FileMax = proplists:get_value(?CONFIG_FILE_MAX, Options, ?FILE_MAX_DEFAULT),
   file:make_dir(Dir),
@@ -86,7 +93,7 @@ init(Sink, Name, Options) ->
 handle_msg(Msg, Extra, #state{formatter = Formatter, formatter_config = FormatterConf} = State) ->
   case logforward_util:format_msg_with_cache(Msg, Formatter, FormatterConf, Extra) of
     Str when is_list(Str) ->
-      State3 = do_log(Str, State),
+      State3 = do_log(Msg, Str, State),
       {ok, State3};
     _ ->
       {ok, State}
@@ -102,15 +109,30 @@ file_pattern_conf(Sink, Name) ->
   H = lists:flatten(io_lib:format("~p.~p.", [Sink, Name])),
   [H, date, ".", nth, ".log"].
 
-open_file(#state{dir = Dir, file_pattern_conf = FPC, formatter = Formatter, file_rotate_type = FRT} = State) ->
+open_file(#state{dir = Dir, file_pattern_conf = FPC, formatter = Formatter, file_rotate_type = FRT, file_max = Max} = State) ->
   FileName = file_name(Dir, Formatter, FPC, [{nth, 0}]),
-  FileAcc =
+  FileCnt = file_cnt(Max, Dir, Formatter, FPC),
+  RotateAcc =
     case FRT of
       ?ROTATE_TYPE_DATA_SIZE -> filelib:file_size(FileName);
-      ?ROTATE_TYPE_MSG_SIZE -> file_lines(FileName)
+      ?ROTATE_TYPE_MSG_SIZE -> file_lines(FileName);
+      ?ROTATE_TYPE_TIME -> timestamp_now()
     end,
   Pid = start(FileName, erlang:self()),
-  State#state{file_acc = FileAcc, file_pid = Pid}.
+  State#state{rotate_acc = RotateAcc, file_pid = Pid, file_cnt = FileCnt}.
+
+file_cnt(Max, Dir, Formatter, FPC) ->
+  file_cnt(0, Max, Dir, Formatter, FPC).
+
+file_cnt(Idx, Max, _Dir, _Formatter, _FPC) when Idx > Max -> Max;
+file_cnt(Idx, Max, Dir, Formatter, FPC) ->
+  FileName = file_name(Dir, Formatter, FPC, [{nth, Idx}]),
+  case filelib:is_file(FileName) of
+    true ->
+      file_cnt(Idx + 1, Max, Dir, Formatter, FPC);
+    false ->
+      erlang:max(0, Idx - 1)
+  end.
 
 file_name(Dir, Formatter, FPC, Opt) ->
   filename:join([Dir, Formatter:format_file(FPC, Opt)]).
@@ -145,41 +167,64 @@ loop(FileName, IoDevice, MonitorRef) ->
     {'DOWN', MonitorRef, _, _, _} ->
       file:close(IoDevice), erlang:demonitor(MonitorRef), ok;
     close ->
-      io:format("file ~s close ~n", [FileName]),
       file:close(IoDevice), erlang:demonitor(MonitorRef), ok;
     _ ->
       ?MODULE:loop(FileName, IoDevice, MonitorRef)
   end.
 
-do_log(Str, #state{dir = Dir,
-  formatter = Formatter,
-  file_pattern_conf = FilePatternConf,
-  file_rotate_type = RotateType,
-  file_rotate_size = RotateSize,
-  file_max = FileMax,
-  file_acc = FileAcc,
-  file_pid = Pid} = State) ->
-  Add = case RotateType of
-          ?ROTATE_TYPE_DATA_SIZE ->
-            Bin = unicode:characters_to_binary(Str),
-            erlang:byte_size(Bin);
-          ?ROTATE_TYPE_MSG_SIZE ->
-            1
+do_log(#logforward_msg{timestamp_ms = TS}, Str, #state{file_rotate_type = RotateType, file_rotate_size = RotateSize, rotate_acc = RotateAcc} = State) when RotateType == ?ROTATE_TYPE_TIME ->
+  % rotate by time
+  % ensure later msg time > before msg time
+  TS_Sec = TS div 1000,
+  Sec = case TS_Sec >= RotateAcc of
+          true -> TS_Sec;
+          false -> timestamp_now()
         end,
-  case FileAcc < RotateSize of
+  case Sec > (RotateAcc + RotateSize) of
+    true ->
+      % rotate file
+      rotate_log(Str, Sec, State);
+    false ->
+      append_log(Str, Sec, State)
+  end;
+do_log(#logforward_msg{}, Str, #state{file_rotate_type = RotateType, file_rotate_size = RotateSize, rotate_acc = RotateAcc} = State) when RotateType == ?ROTATE_TYPE_DATA_SIZE ->
+  % rotate by data size
+  Add = erlang:byte_size(unicode:characters_to_binary(Str)),
+  case RotateAcc < RotateSize of
     false ->
       % rotate file
-      Pid ! close,
-      rotate(FileMax, FileMax, Dir, FilePatternConf, Formatter),
-      FileName = file_name(Dir, Formatter, FilePatternConf, [{nth, 0}]),
-      NewPid = start(FileName, erlang:self()),
-      NewPid ! {append, Str},
-      State#state{file_acc = Add, file_pid = NewPid};
+      rotate_log(Str, Add, State);
     true ->
-      Pid ! {append, Str},
-      State#state{file_acc = FileAcc + Add}
+      append_log(Str, RotateAcc + Add, State)
+  end;
+do_log(#logforward_msg{}, Str, #state{file_rotate_type = RotateType, file_rotate_size = RotateSize, rotate_acc = RotateAcc} = State) when RotateType == ?ROTATE_TYPE_MSG_SIZE ->
+  % rotate by msg size
+  Add = 1,
+  case RotateAcc < RotateSize of
+    false ->
+      % rotate file
+      rotate_log(Str, Add, State);
+    true ->
+      append_log(Str, RotateAcc + Add, State)
   end.
 
+append_log(Str, RotateAcc, #state{file_pid = Pid} = State) ->
+  Pid ! {append, Str},
+  State#state{rotate_acc = RotateAcc}.
+
+rotate_log(Str, RotateAcc, #state{dir = Dir,
+  formatter = Formatter,
+  file_pattern_conf = FilePatternConf,
+  file_max = FileMax,
+  file_cnt = FileCnt,
+  file_pid = Pid} = State) ->
+  Pid ! close,
+  rotate(FileCnt, FileMax, Dir, FilePatternConf, Formatter),
+  FileCnt2 = erlang:min(FileMax, FileCnt + 1),
+  FileName = file_name(Dir, Formatter, FilePatternConf, [{nth, 0}]),
+  NewPid = start(FileName, erlang:self()),
+  NewPid ! {append, Str},
+  State#state{rotate_acc = RotateAcc, file_pid = NewPid, file_cnt = FileCnt2}.
 
 rotate(IDX, MAX, Dir, FilePatternConf, Formatter) when IDX == MAX ->
   % delete file
@@ -209,3 +254,6 @@ rotate(IDX, MAX, Dir, FilePatternConf, Formatter) ->
       ok
   end.
 
+timestamp_now() ->
+  {Meg, Sec, _Micro} = os:timestamp(),
+  Meg * 1000 * 1000 + Sec.

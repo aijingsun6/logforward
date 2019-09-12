@@ -1,6 +1,11 @@
 -module(logforward_transform_test).
 -author('alking').
-
+%% #change macro APPENDER_FORMATTER_CONFIG_DEFAULT in file logforward.hrl
+%% rebar compile
+%% erl -pa ebin -s logforward
+%% compile:file("test/logforward_transform_test.erl",[debug_info, {parse_transform,logforward_transform}]).
+%% logforward_transform_test:info_test().
+%% you can see output
 %% API
 -export([
   test/0,

@@ -113,8 +113,7 @@ AppenderOptions:: proplist()
 - [x] 垃圾回收，sink在运行一段时间后，内存消耗较大，采用定期垃圾清理
 
 ### TODO:
-- metadata的格式化
-
+- [ ] parse_transform
 
 
 

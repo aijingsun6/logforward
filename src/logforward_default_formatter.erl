@@ -68,11 +68,13 @@ format([nmsg | L], Msg, Extra, Acc) ->
 format([nth | L], Msg, Extra, Acc) ->
   N = proplists:get_value(nth, Extra, 0),
   format(L, Msg, Extra, [logforward_util:to_string(N) | Acc]);
+format([metadata | L], #logforward_msg{metadata = Meta} = Msg, Extra, Acc) ->
+  Str = metadata_to_string(Meta),
+  format(L, Msg, Extra, [Str | Acc]);
 format([E | L], Msg, Extra, Acc) when is_list(E) ->
   format(L, Msg, Extra, [E | Acc]);
 format([_ | L], Msg, Extra, Acc) ->
   format(L, Msg, Extra, Acc).
-
 
 format_file([], _, Acc) ->
   lists:flatten(lists:reverse(Acc));
@@ -88,7 +90,12 @@ format_file([E | L], Options, Acc) when is_list(E) ->
 format_file([_ | L], Options, Acc) ->
   format_file(L, Options, Acc).
 
-
-
-
+metadata_to_string(L) ->
+  L2 = lists:filtermap(
+    fun({K, V}) -> {true, [logforward_util:to_string(K), "=", logforward_util:to_string(V)]};
+      (_) -> false
+    end,
+    L
+  ),
+  lists:flatten(lists:join("&", L2)).
 

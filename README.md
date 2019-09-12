@@ -18,7 +18,10 @@ logforward 是一个erlang高性能的日志框架
 我心里的理想日志框架，需要做到完全异步处理，相当于操作都是cast操作，对基本业务不会有阻塞操作，而且不希望看到单点
 
 ### 特性
-
+##### 支持 parse_transform,不过要比lager更简单
+```
+{parse_transform, lager_transform}
+```
 
 ### 设计思路
 1. 通过sink来串行给appender分发日志，但是appender可以是异步处理的(handle_msg)
@@ -39,6 +42,8 @@ logforward 是一个erlang高性能的日志框架
 | node | 节点 | |
 | metadata | 额外信息 | | 
 | nmsg | 第N条日志 ||
+| function | 函数入口 ||
+| function_arity |  函数参数个数 | |
 
 ```
 例子：
@@ -113,7 +118,7 @@ AppenderOptions:: proplist()
 - [x] 垃圾回收，sink在运行一段时间后，内存消耗较大，采用定期垃圾清理
 
 ### TODO:
-- [ ] parse_transform
+- [x] parse_transform
 
 
 

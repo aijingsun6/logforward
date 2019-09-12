@@ -65,6 +65,10 @@ format([node | L], #logforward_msg{node = Node} = Msg, Extra, Acc) ->
 format([nmsg | L], Msg, Extra, Acc) ->
   N = proplists:get_value(nmsg, Extra, 0),
   format(L, Msg, Extra, [logforward_util:to_string(N) | Acc]);
+format([function | L], #logforward_msg{function = Func} = Msg, Extra, Acc) ->
+  format(L, Msg, Extra, [logforward_util:to_string(Func) | Acc]);
+format([function_arity | L], #logforward_msg{function_arity = FA} = Msg, Extra, Acc) ->
+  format(L, Msg, Extra, [logforward_util:to_string(FA) | Acc]);
 format([nth | L], Msg, Extra, Acc) ->
   N = proplists:get_value(nth, Extra, 0),
   format(L, Msg, Extra, [logforward_util:to_string(N) | Acc]);

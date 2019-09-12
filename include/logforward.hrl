@@ -47,12 +47,15 @@
 
 -define(APPENDER_FORMAT_PATTERN, pattern).
 -define(APPENDER_FORMATTER_CONFIG_DEFAULT, [datetime, " [", level, "] - ", msg, eol]).
+%%-define(APPENDER_FORMATTER_CONFIG_DEFAULT, [datetime, " [", level, "] - (", module, ",", line, ",", function, ",", function_arity, ") ", msg, eol]).
 
 -record(logforward_msg, {
   datetime,
   timestamp_ms,% in ms
   module,
   line,
+  function,
+  function_arity,
   level,
   node,
   pid,

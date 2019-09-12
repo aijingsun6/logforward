@@ -82,7 +82,7 @@ fatal(Sink, Format, Args, MetaData) when is_atom(Sink) ->
 
 log(Sink, Level, Format, Args, MetaData) ->
   Msg = #logforward_msg{level = Level, format = Format, args = Args},
-  Msg2 = parse_msg([module, line, pid, node], MetaData, Msg),
+  Msg2 = parse_msg([module, line, pid, node, function, function_arity], MetaData, Msg),
   Msg3 = Msg2#logforward_msg{datetime = calendar:local_time(), timestamp_ms = timestamp_ms()},
   logforward_sink:msg(Sink, Msg3).
 
@@ -112,6 +112,12 @@ parse_msg([pid | L], MetaData, Acc) ->
 parse_msg([node | L], MetaData, Acc) ->
   {V, MetaData2} = parse_del_opt(node, MetaData, node()),
   parse_msg(L, MetaData2, Acc#logforward_msg{node = V});
+parse_msg([function | L], MetaData, Acc) ->
+  {V, MetaData2} = parse_del_opt(function, MetaData, none),
+  parse_msg(L, MetaData2, Acc#logforward_msg{function = V});
+parse_msg([function_arity | L], MetaData, Acc) ->
+  {V, MetaData2} = parse_del_opt(function_arity, MetaData, 0),
+  parse_msg(L, MetaData2, Acc#logforward_msg{function_arity = V});
 parse_msg(_, MetaData, Acc) ->
   Acc#logforward_msg{metadata = MetaData}.
 

@@ -23,6 +23,7 @@ logforward 是一个erlang高性能的日志框架
 ### 设计思路
 1. 通过sink来串行给appender分发日志，但是appender可以是异步处理的(handle_msg)
 2. 限流，通过sink消息队列数量
+
 ### 日志的格式 
 | name | note | example | 
 | --- | --- | --- |
@@ -107,7 +108,9 @@ AppenderOptions:: proplist()
 
 ### 优化：
 - [x] 异步写文件，减少sink的负担
-- [x] 格式化函数使用缓存，减少计算次数,毕竟同一个人总期望使用相同格式的日志嘛
+- [x] 格式化函数使用缓存，减少计算次数,毕竟同一个人一般情况下，日志的格式倾向于一致，无论是console,还是file
+- [x] 限流，对比lager,采用block方式，达到阀值后，不让向sink发送消息,而lager只是对调用proc堵塞，但是可以新开proc，向sink发送消息
+- [x] 垃圾回收，sink在运行一段时间后，内存消耗较大，采用定期垃圾清理
 
 ### TODO:
 - metadata的格式化

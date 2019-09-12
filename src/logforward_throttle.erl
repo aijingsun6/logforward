@@ -7,7 +7,9 @@
 -export([
   start_link/0,
   report_msg_n/3,
-  check_limit/1
+  check_limit/1,
+  free_sink/1,
+  free_sink/2
 ]).
 
 %% gen_server callbacks
@@ -20,6 +22,7 @@
   code_change/3
 ]).
 
+%% {Sink,Throttle,N}
 -define(THROTTLE_ETS, logforward_throttle_ets).
 -define(SERVER, ?MODULE).
 
@@ -34,10 +37,15 @@
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
+%% 上报消息队列长度
 report_msg_n(Sink, Throttle, N) ->
   case ets:lookup(?THROTTLE_ETS, Sink) of
-    [{_, _, OldN}] when OldN > Throttle andalso N < Throttle -> gen_server:cast(?SERVER, {free_sink, Sink});
-    _ -> pass
+    [{_, OldThrottle, OldN}] when OldN > OldThrottle andalso N < Throttle ->
+      % free a  block sink
+      FreeN = Throttle - N,
+      gen_server:cast(?SERVER, {free_sink, Sink, FreeN});
+    _ ->
+      pass
   end,
   ets:insert(?THROTTLE_ETS, {Sink, Throttle, N}).
 
@@ -51,6 +59,10 @@ check_limit(Sink) ->
       catch gen_server:call(?SERVER, {check_limit, Sink}, 1000 * 60)
   end.
 
+free_sink(Sink) -> gen_server:cast(?SERVER, {free_sink, Sink}).
+
+free_sink(Sink, N) -> gen_server:cast(?SERVER, {free_sink, Sink, N}).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -61,19 +73,31 @@ init([]) ->
 
 handle_call({check_limit, Sink}, From, #state{req_queue = PL} = State) ->
   PL2 = case lists:keyfind(Sink, 1, PL) of
-          false -> [{Sink, [From]} | PL];
-          {_, L} -> lists:keyreplace(Sink, 1, PL, {Sink, [From | L]})
+          false ->
+            [{Sink, [From]} | PL];
+          {_, L} ->
+            L2 = lists:reverse([From | L]),
+            lists:keyreplace(Sink, 1, PL, {Sink, L2})
         end,
   {noreply, State#state{req_queue = PL2}};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
+handle_cast({free_sink, Sink, FreeN}, #state{req_queue = PL} = State) ->
+  PL2 = case lists:keyfind(Sink, 1, PL) of
+          false ->
+            [{Sink, []} | PL];
+          {_, L} ->
+            L2 = do_free_sink(L, FreeN, 0),
+            lists:keyreplace(Sink, 1, PL, {Sink, L2})
+        end,
+  {noreply, State#state{req_queue = PL2}};
 handle_cast({free_sink, Sink}, #state{req_queue = PL} = State) ->
   PL2 = case lists:keyfind(Sink, 1, PL) of
           false ->
             [{Sink, []} | PL];
           {_, L} ->
-            do_free_sink(L),
+            do_free_sink(L, length(L), 0),
             lists:keyreplace(Sink, 1, PL, {Sink, []})
         end,
   {noreply, State#state{req_queue = PL2}};
@@ -89,11 +113,15 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
-do_free_sink([]) -> ok;
-do_free_sink([From | L]) ->
-  gen_server:reply(From, ok),
-  do_free_sink(L).
-
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+
+do_free_sink([], _N, _Acc) ->
+  [];
+do_free_sink(L, N, Acc) when Acc >= N ->
+  L;
+do_free_sink([From | L], N, Acc) ->
+  gen_server:reply(From, ok),
+  do_free_sink(L, N, Acc + 1).

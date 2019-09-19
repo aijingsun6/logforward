@@ -18,9 +18,9 @@ logforward 是一个erlang高性能的日志框架
 我心里的理想日志框架，需要做到完全异步处理，相当于操作都是cast操作，对基本业务不会有阻塞操作，而且不希望看到单点
 
 ### 特性
-##### 支持 parse_transform,不过要比lager更简单
+##### 支持 logforward_transform,不过要比lager更简单
 ```
-{parse_transform, lager_transform}
+{parse_transform, logforward_transform}
 ```
 
 ### 设计思路

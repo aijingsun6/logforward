@@ -5,7 +5,7 @@ logforward 是一个erlang高性能的日志框架
 ### 我为什么要造轮子?
 我用过的```erlang```日志框架有2个:```log4erl,lager```他们无论从设计还是实现上都很棒
 
-但是我通过阅读他们的代码，结合自己对erlang的理解（不知道自己的理解是否OK），我觉得他们都存在瓶颈，而且这个瓶颈很明显
+但是我通过阅读他们的代码，结合自己对erlang的理解，我觉得他们都存在瓶颈，而且这个瓶颈很明显
 
 他们的主要操作都在一个gen_event进程里面，这个进程的处理事情有点多，每个appender都要***顺序处理***
 
@@ -50,14 +50,13 @@ logforward 是一个erlang高性能的日志框架
 %datetime [ %level ] - %msg%eol
 格式化后的结果就是这个样子
 2019-09-10 12:00:00.000 [INFO] - hello\r\n
-
 ```
 
 ### 文件的格式
 | name | note | example |
 | --- | --- | --- |
 | date | 日期 | yyyy-MM-dd |
-| nth | 第N | |
+| nth  | 第N个文件   | |
 
 ```
 info_%nth.log
@@ -116,10 +115,6 @@ AppenderOptions:: proplist()
 - [x] 格式化函数使用缓存，减少计算次数,毕竟同一个人一般情况下，日志的格式倾向于一致，无论是console,还是file
 - [x] 限流，对比lager,采用block方式，达到阀值后，不让向sink发送消息,而lager只是对调用proc堵塞，但是可以新开proc，向sink发送消息
 - [x] 垃圾回收，sink在运行一段时间后，内存消耗较大，采用定期垃圾清理
-
-### TODO:
-- [x] parse_transform
-
 
 
 

@@ -7,11 +7,15 @@
 -export([
   start_link/3,
   set_cut_level/2,
-  set_appender_level/3,
   msg/2
 ]).
 
--export([]).
+-export([
+  appenders/1,
+  add_appender/2,
+  remove_appender/2,
+  set_appender_level/3
+]).
 
 %% gen_server callbacks
 -export([
@@ -32,7 +36,8 @@
 }).
 
 -record(state, {
-  name,
+  sink,
+  options,
   cut_level,
   throttle,
   garbage_msg,
@@ -74,6 +79,16 @@ set_appender_level(Sink, Appender, Level) ->
     false ->
       {fail, level_error}
   end.
+
+appenders(Sink) when is_atom(Sink) ->
+  gen_server:call(Sink, {appenders}, 5000).
+
+add_appender(Sink, {Name, Mod, Opt} = E) when is_atom(Sink), is_atom(Name), is_atom(Mod), is_list(Opt) ->
+  gen_server:call(Sink, {add_appender, E}, 5000).
+
+remove_appender(Sink, Name) when is_atom(Sink), is_atom(Name) ->
+  gen_server:call(Sink, {remove_appender, Name}, 5000).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -87,7 +102,8 @@ init([Name, Options, Appends]) ->
   Garbage = proplists:get_value(?CONFIG_GARBAGE_MSG, Options, ?SINK_GARBAGE_DEFAULT),
   Report = proplists:get_value(?CONFIG_REPORT_MSG, Options, ?SINK_REPORT_MSG_DEFAULT),
   true = Report < Throttle,
-  {ok, #state{name = Name,
+  {ok, #state{sink = Name,
+    options = Options,
     cut_level = CutLevel,
     throttle = Throttle,
     garbage_msg = Garbage,
@@ -96,18 +112,46 @@ init([Name, Options, Appends]) ->
     nmsg = 0
   }}.
 
-handle_call({set_cut_level, Level}, _From, #state{name = Name} = State) ->
+handle_call({appenders}, _From, #state{appender = L} = State) ->
+  L2 = lists:map(fun({X, _}) -> X end, L),
+  {reply, L2, State};
+
+handle_call({add_appender, {Name, _Mod, _Opt} = E}, _From, #state{sink = Sink, options = Opt, appender = L} = State) ->
+  case lists:keyfind(Name, 1, L) of
+    {_, _} ->
+      {reply, appende_exists, State};
+    false ->
+      L2 = install_appender([E], Sink, Opt, L),
+      {reply, ok, State#state{appender = L2}}
+  end;
+
+handle_call({remove_appender, Name}, _From, #state{appender = L} = State) ->
+  case lists:keyfind(Name, 1, L) of
+    {_, _} = E ->
+      terminate_appender([E], normal),
+      L2 = lists:keydelete(Name, 1, L),
+      {reply, ok, State#state{appender = L2}};
+    false ->
+      {reply, appende_not_found, State}
+  end;
+
+handle_call({set_cut_level, Level}, _From, #state{sink = Name, options = Opts} = State) ->
+  Opts2 = case lists:keyfind(?CONFIG_CUT_LEVEL, 1, Opts) of
+            false -> [{?CONFIG_CUT_LEVEL, Level} | Opts];
+            {_, _} -> lists:keyreplace(?CONFIG_CUT_LEVEL, 1, Opts, {?CONFIG_CUT_LEVEL, Level})
+          end,
   logforward_util:set({Name, ?CONFIG_CUT_LEVEL}, Level),
-  {reply, ok, State#state{cut_level = Level}};
+  {reply, ok, State#state{cut_level = Level, options = Opts2}};
+
 handle_call({set_appender_level, Appender, Level}, _From, #state{appender = L} = State) ->
-  L2 = case lists:keyfind(Appender, 1, L) of
-         {_, #appender{} = E} ->
-           E2 = E#appender{level = Level},
-           lists:keyreplace(Appender, 1, L, {Appender, E2});
-         false ->
-           L
-       end,
-  {reply, ok, State#state{appender = L2}};
+  case lists:keyfind(Appender, 1, L) of
+    {_, #appender{} = E} ->
+      E2 = E#appender{level = Level},
+      L2 = lists:keyreplace(Appender, 1, L, {Appender, E2}),
+      {reply, ok, State#state{appender = L2}};
+    false ->
+      {reply, appender_not_found, State}
+  end;
 
 handle_call({msg, Msg}, _From, State) ->
   State2 = do_deal_msg(Msg, State),
@@ -164,7 +208,7 @@ gc(#state{nmsg = N, garbage_msg = G}) ->
     _ -> pass
   end.
 
-report_msg_n(#state{nmsg = N, name = Name, throttle = Throttle, report_msg = R}) ->
+report_msg_n(#state{nmsg = N, sink = Name, throttle = Throttle, report_msg = R}) ->
   case N rem R of
     0 ->
       {message_queue_len, Len} = erlang:process_info(self(), message_queue_len),

@@ -7,6 +7,7 @@
 -export([
   start_link/3,
   set_cut_level/2,
+  set_throttle/2,
   msg/2
 ]).
 

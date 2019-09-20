@@ -72,6 +72,9 @@ set_cut_level(Sink, Level) ->
       {fail, level_error}
   end.
 
+set_throttle(Sink, Throttle) ->
+  gen_server:call(Sink, {set_throttle, Throttle}, 5000).
+
 set_appender_level(Sink, Appender, Level) ->
   case lists:member(Level, ?LOG_LEVEL_ALL) of
     true ->
@@ -152,6 +155,14 @@ handle_call({set_appender_level, Appender, Level}, _From, #state{appender = L} =
     false ->
       {reply, appender_not_found, State}
   end;
+
+handle_call({set_throttle, Throttle}, _From, #state{sink = Name, options = Opts} = State) ->
+  logforward_util:set({Name, ?CONFIG_THROTTLE}, Throttle),
+  Opts2 = case lists:keyfind(?CONFIG_THROTTLE, 1, Opts) of
+            false -> [{?CONFIG_THROTTLE, Throttle} | Opts];
+            {_, _} -> lists:keyreplace(?CONFIG_THROTTLE, 1, Opts, {?CONFIG_THROTTLE, Throttle})
+          end,
+  {reply, ok, State#state{throttle = Throttle, options = Opts2}};
 
 handle_call({msg, Msg}, _From, State) ->
   State2 = do_deal_msg(Msg, State),

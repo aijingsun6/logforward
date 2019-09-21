@@ -1,6 +1,6 @@
 {application, logforward,
   [{description, "An OTP application"},
-    {vsn, "0.0.1"},
+    {vsn, "1.0.0"},
     {registered, []},
     {mod, {logforward_app, []}},
     {applications,

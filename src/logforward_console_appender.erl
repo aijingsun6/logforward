@@ -6,7 +6,8 @@
 -export([
   init/3,
   handle_msg/3,
-  terminate/2
+  terminate/2,
+  gc/1
 ]).
 
 -export([start/1, loop/1]).
@@ -38,6 +39,9 @@ terminate(_Reason, #state{io_pid = Pid}) when is_pid(Pid) ->
 terminate(_Reason, _State) ->
   ok.
 
+gc(#state{io_pid = Pid}) ->
+  Pid ! gc.
+
 do_log(Msg, Extra, #state{formatter = Formatter, formatter_config = FormatterConf, io_pid = Pid}) ->
   case logforward_util:format_msg_with_cache(Msg, Formatter, FormatterConf, Extra) of
     Str when erlang:is_list(Str) -> Pid ! {append, Str};
@@ -61,6 +65,9 @@ loop(MonitorRef) ->
       ?MODULE:loop(MonitorRef);
     {'DOWN', MonitorRef, _, _, _} ->
       erlang:demonitor(MonitorRef), ok;
+    gc ->
+      erlang:garbage_collect(self()),
+      ?MODULE:loop(MonitorRef);
     close ->
       erlang:demonitor(MonitorRef), ok;
     _ ->

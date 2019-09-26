@@ -41,8 +41,8 @@
   options,
   cut_level,
   throttle,
-  garbage_msg,
-  report_msg,
+  msg_per_gc,
+  msg_per_report,
   nmsg,
   appender = [] % {Name,#appender{}}
 }).
@@ -103,15 +103,15 @@ init([Name, Options, Appends]) ->
   Throttle = proplists:get_value(?CONFIG_THROTTLE, Options, ?SINK_THROTTLE_DEFAULT),
   logforward_util:set({Name, ?CONFIG_CUT_LEVEL}, CutLevel),
   logforward_util:set({Name, ?CONFIG_THROTTLE}, Throttle),
-  Garbage = proplists:get_value(?CONFIG_GARBAGE_MSG, Options, ?SINK_GARBAGE_DEFAULT),
-  Report = proplists:get_value(?CONFIG_REPORT_MSG, Options, ?SINK_REPORT_MSG_DEFAULT),
+  Garbage = proplists:get_value(?CONFIG_MSG_PER_GC, Options, ?SINK_GC_DEFAULT),
+  Report = proplists:get_value(?CONFIG_MSG_PER_REPORT, Options, ?SINK_REPORT_DEFAULT),
   true = Report < Throttle,
   {ok, #state{sink = Name,
     options = Options,
     cut_level = CutLevel,
     throttle = Throttle,
-    garbage_msg = Garbage,
-    report_msg = Report,
+    msg_per_gc = Garbage,
+    msg_per_report = Report,
     appender = L,
     nmsg = 0
   }}.
@@ -214,13 +214,24 @@ do_deal_msg(Msg, #state{appender = L, nmsg = N} = State) ->
   logforward_util:clean_format_cache(),
   State#state{appender = L2, nmsg = N2}.
 
-gc(#state{nmsg = N, garbage_msg = G}) ->
+gc(#state{nmsg = N, msg_per_gc = G, appender = L}) ->
   case N rem G of
-    0 -> erlang:garbage_collect(self());
-    _ -> pass
+    0 ->
+      erlang:garbage_collect(self()),
+      gc_appender(L);
+    _ ->
+      pass
   end.
 
-report_msg_n(#state{nmsg = N, sink = Name, throttle = Throttle, report_msg = R}) ->
+gc_appender([]) -> ok;
+gc_appender([{_Name, #appender{mod = Mod, state = State}} | L]) ->
+  case erlang:function_exported(Mod, gc, 1) of
+    true -> Mod:gc(State);
+    false -> pass
+  end,
+  gc_appender(L).
+
+report_msg_n(#state{nmsg = N, sink = Name, throttle = Throttle, msg_per_report = R}) ->
   case N rem R of
     0 ->
       {message_queue_len, Len} = erlang:process_info(self(), message_queue_len),

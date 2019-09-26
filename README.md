@@ -94,9 +94,9 @@ AppenderOptions:: proplist()
 | --- | --- | ---|
 | dir | string() | 目录 |
 | cut_level | atom() | 限制等级|
-| garbage_msg | int | 每处理N条消息，进行一次垃圾回收|
+| msg_per_gc | int | 每处理N条消息，进行一次垃圾回收|
 | throttle | int | 消息队列数量达到N,开始限流，知道下次消息队列数量低于这个值 |
-| report_msg | int | 每处理N条消息，上报消息队列长度，用于限流,report_msg << throttle  |
+| msg_per_report | int | 每处理N条消息，上报消息队列长度，用于限流,report_msg << throttle  |
 
 ##### appender 配置项
 | name | type | note |
@@ -109,6 +109,16 @@ AppenderOptions:: proplist()
 | rotate_type | type | 日志滚动类别：data_size,msg_size,time|
 | rotate_size | int | 日志得到多少滚动|
 | max | int | 最多保留文件数量 |
+
+##### 如何自己实现 appender
+请参考模块 ```logforward_console_appender``` 和 ```logforward_file_appender``` 实现对应的callback即可
+
+| 名称 | 是否必须 | 说明| 
+| --- | --- | ---|
+|  init | 是 | 初始化状态 |
+|  handle_msg | 是 | 自定义写日志到std，文件，或者网络 |
+| terminate | 是 | 自定义实现关闭文件流，或者网络流 |
+| gc | 否 | 自定义对异步出去的proc进行gc|
 
 ### 优化：
 - [x] 异步写文件，减少sink的负担

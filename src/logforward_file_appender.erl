@@ -6,7 +6,8 @@
 -export([
   init/3,
   handle_msg/3,
-  terminate/2
+  terminate/2,
+  gc/1
 ]).
 
 -export([
@@ -105,6 +106,9 @@ terminate(_Reason, #state{file_pid = FP}) when is_pid(FP) ->
 terminate(_Reason, _State) ->
   ok.
 
+gc(#state{file_pid = FP}) ->
+  FP ! gc.
+
 file_pattern_conf(Sink, Name) ->
   H = lists:flatten(io_lib:format("~p.~p.", [Sink, Name])),
   [H, date, ".", nth, ".log"].
@@ -163,6 +167,9 @@ loop(FileName, IoDevice, MonitorRef) ->
   receive
     {append, Str} ->
       catch io:put_chars(IoDevice, Str),
+      ?MODULE:loop(FileName, IoDevice, MonitorRef);
+    gc ->
+      erlang:garbage_collect(self()),
       ?MODULE:loop(FileName, IoDevice, MonitorRef);
     {'DOWN', MonitorRef, _, _, _} ->
       file:close(IoDevice), erlang:demonitor(MonitorRef), ok;

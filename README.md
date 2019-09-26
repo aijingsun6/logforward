@@ -24,11 +24,12 @@ logforward 是一个erlang高性能的日志框架
 ```
 
 ### 设计思路
-1. 通过sink来串行给appender分发日志，但是appender可以是异步处理的(handle_msg)
+1. 通过sink来串行给appender分发日志，但是appender可以是异步处理消息
 2. 限流，通过sink消息队列数量
+3. 垃圾回收，定期进行垃圾回收
 
 ### 日志的格式 
-| name | note | example | 
+| 名称 | 说明 | 举例 |
 | --- | --- | --- |
 | module | 模块名称 |  |
 | date | 日期 | yyyy-MM-dd |
@@ -53,7 +54,7 @@ logforward 是一个erlang高性能的日志框架
 ```
 
 ### 文件的格式
-| name | note | example |
+| 名称 | 说明 | 举例 |
 | --- | --- | --- |
 | date | 日期 | yyyy-MM-dd |
 | nth  | 第N个文件   | |
@@ -90,16 +91,16 @@ AppenderModule::atom()
 AppenderOptions:: proplist()
 ```
 ##### sink 配置项
-| name | type | note |
+| 名称 | 类型 | 说明 |
 | --- | --- | ---|
 | dir | string() | 目录 |
 | cut_level | atom() | 限制等级|
-| msg_per_gc | int | 每处理N条消息，进行一次垃圾回收|
-| throttle | int | 消息队列数量达到N,开始限流，知道下次消息队列数量低于这个值 |
-| msg_per_report | int | 每处理N条消息，上报消息队列长度，用于限流,report_msg << throttle  |
+| throttle | integer | 消息队列数量达到N,开始限流，知道下次消息队列数量低于这个值 |
+| report | integer | 每处理N条消息，上报消息队列长度，用于限流，lager也有这个机制，不过是每条消息都会检测并且限流  |
+| gc | integer | 每处理N条消息，进行一次垃圾回收,lager没有这个机制|
 
 ##### appender 配置项
-| name | type | note |
+| 名称 | 类型 | 说明 |
 | --- | --- | --- |
 | dir | string() | 目录,可覆盖sink的配置 |
 | level | atom() | 限制等级|
@@ -107,7 +108,7 @@ AppenderOptions:: proplist()
 | pattern | string() | 日志格式 |
 | file_pattern | string() | 文件日志，文件名格式|
 | rotate_type | type | 日志滚动类别：data_size,msg_size,time|
-| rotate_size | int | 日志得到多少滚动|
+| rotate_size | integer | 日志得到多少滚动|
 | max | int | 最多保留文件数量 |
 
 ##### 如何自己实现 appender
@@ -120,7 +121,7 @@ AppenderOptions:: proplist()
 | terminate | 是 | 自定义实现关闭文件流，或者网络流 |
 | gc | 否 | 自定义对异步出去的proc进行gc|
 
-### 优化：
+###  [vs lager](https://github.com/aijingsun6/logforwardvslager.git)
 - [x] 异步写文件，减少sink的负担
 - [x] 格式化函数使用缓存，减少计算次数,毕竟同一个人一般情况下，日志的格式倾向于一致，无论是console,还是file
 - [x] 限流，对比lager,采用block方式，达到阀值后，不让向sink发送消息,而lager只是对调用proc堵塞，但是可以新开proc，向sink发送消息

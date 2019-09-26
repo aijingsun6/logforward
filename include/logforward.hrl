@@ -32,11 +32,11 @@
 -define(SINK_THROTTLE_DEFAULT, 1024).
 
 %% 每N条消息，进行一次垃圾回收
--define(CONFIG_MSG_PER_GC, msg_per_gc).
+-define(CONFIG_GC, gc).
 -define(SINK_GC_DEFAULT, 1024).
 
 %% 每N条消息，上报消息队列长度
--define(CONFIG_MSG_PER_REPORT, msg_per_report).
+-define(CONFIG_REPORT, report).
 -define(SINK_REPORT_DEFAULT, 256).
 
 -define(CONFIG_LEVEL, level).

@@ -48,9 +48,9 @@
   formatter_config,
 
   dir,
-  file_pattern_conf,
-  file_rotate_type,
-  file_rotate_size,
+  file_pattern,
+  rotate_type,
+  rotate_size,
   rotate_acc,
   file_max,
   file_cnt,
@@ -65,10 +65,10 @@ init(Sink, Name, Options) ->
                     false -> ?APPENDER_FORMATTER_CONFIG_DEFAULT
                   end,
   Dir = proplists:get_value(?CONFIG_DIR, Options, ?DIR_DEFAULT),
-  FilePatternConf = case lists:keyfind(?CONFIG_FILE_PATTERN, 1, Options) of
-                      {_, FileStr} -> Formatter:parse_pattern(FileStr);
-                      false -> file_pattern_conf(Sink, Name)
-                    end,
+  FilePattern = case lists:keyfind(?CONFIG_FILE_PATTERN, 1, Options) of
+                  {_, FileStr} -> Formatter:parse_pattern(FileStr);
+                  false -> file_pattern_conf(Sink, Name)
+                end,
   RotateType = proplists:get_value(?CONFIG_ROTATE_TYPE, Options, ?ROTATE_TYPE_DEFAULT),
   RotateSize = case RotateType of
                  ?ROTATE_TYPE_DATA_SIZE -> proplists:get_value(?CONFIG_ROTATE_SIZE, Options, ?ROTATE_DATA_SIZE_DEFAULT);
@@ -83,9 +83,9 @@ init(Sink, Name, Options) ->
     level = Level,
     formatter = Formatter, formatter_config = FormatterConf,
     dir = Dir,
-    file_pattern_conf = FilePatternConf,
-    file_rotate_type = RotateType,
-    file_rotate_size = RotateSize,
+    file_pattern = FilePattern,
+    rotate_type = RotateType,
+    rotate_size = RotateSize,
     file_max = FileMax
   },
   State2 = open_file(State),
@@ -113,7 +113,7 @@ file_pattern_conf(Sink, Name) ->
   H = lists:flatten(io_lib:format("~p.~p.", [Sink, Name])),
   [H, date, ".", nth, ".log"].
 
-open_file(#state{dir = Dir, file_pattern_conf = FPC, formatter = Formatter, file_rotate_type = FRT, file_max = Max} = State) ->
+open_file(#state{dir = Dir, file_pattern = FPC, formatter = Formatter, rotate_type = FRT, file_max = Max} = State) ->
   FileName = file_name(Dir, Formatter, FPC, [{nth, 0}]),
   FileCnt = file_cnt(Max, Dir, Formatter, FPC),
   RotateAcc =
@@ -179,7 +179,7 @@ loop(FileName, IoDevice, MonitorRef) ->
       ?MODULE:loop(FileName, IoDevice, MonitorRef)
   end.
 
-do_log(#logforward_msg{timestamp_ms = TS}, Str, #state{file_rotate_type = RotateType, file_rotate_size = RotateSize, rotate_acc = RotateAcc} = State) when RotateType == ?ROTATE_TYPE_TIME ->
+do_log(#logforward_msg{timestamp_ms = TS}, Str, #state{rotate_type = RotateType, rotate_size = RotateSize, rotate_acc = RotateAcc} = State) when RotateType == ?ROTATE_TYPE_TIME ->
   % rotate by time
   % ensure later msg time > before msg time
   TS_Sec = TS div 1000,
@@ -194,7 +194,7 @@ do_log(#logforward_msg{timestamp_ms = TS}, Str, #state{file_rotate_type = Rotate
     false ->
       append_log(Str, Sec, State)
   end;
-do_log(#logforward_msg{}, Str, #state{file_rotate_type = RotateType, file_rotate_size = RotateSize, rotate_acc = RotateAcc} = State) when RotateType == ?ROTATE_TYPE_DATA_SIZE ->
+do_log(#logforward_msg{}, Str, #state{rotate_type = RotateType, rotate_size = RotateSize, rotate_acc = RotateAcc} = State) when RotateType == ?ROTATE_TYPE_DATA_SIZE ->
   % rotate by data size
   Add = erlang:byte_size(unicode:characters_to_binary(Str)),
   case RotateAcc < RotateSize of
@@ -204,7 +204,7 @@ do_log(#logforward_msg{}, Str, #state{file_rotate_type = RotateType, file_rotate
     true ->
       append_log(Str, RotateAcc + Add, State)
   end;
-do_log(#logforward_msg{}, Str, #state{file_rotate_type = RotateType, file_rotate_size = RotateSize, rotate_acc = RotateAcc} = State) when RotateType == ?ROTATE_TYPE_MSG_SIZE ->
+do_log(#logforward_msg{}, Str, #state{rotate_type = RotateType, rotate_size = RotateSize, rotate_acc = RotateAcc} = State) when RotateType == ?ROTATE_TYPE_MSG_SIZE ->
   % rotate by msg size
   Add = 1,
   case RotateAcc < RotateSize of
@@ -221,7 +221,7 @@ append_log(Str, RotateAcc, #state{file_pid = Pid} = State) ->
 
 rotate_log(Str, RotateAcc, #state{dir = Dir,
   formatter = Formatter,
-  file_pattern_conf = FilePatternConf,
+  file_pattern = FilePatternConf,
   file_max = FileMax,
   file_cnt = FileCnt,
   file_pid = Pid} = State) ->

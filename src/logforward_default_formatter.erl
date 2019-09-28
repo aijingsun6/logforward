@@ -53,7 +53,7 @@ format([datetime | L], #logforward_msg{datetime = DT, timestamp_ms = TS} = Msg, 
 format([msg | L], #logforward_msg{format = Format, args = Args} = Msg, Extra, Acc) ->
   format(L, Msg, Extra, [lists:flatten(io_lib:format(Format, Args)) | Acc]);
 format([eol | L], Msg, Extra, Acc) ->
-  format(L, Msg, Extra, ["\r\n" | Acc]);
+  format(L, Msg, Extra, ["\n" | Acc]);
 format([line | L], #logforward_msg{line = Line} = Msg, Extra, Acc) ->
   format(L, Msg, Extra, [logforward_util:to_string(Line) | Acc]);
 format([level | L], #logforward_msg{level = Level} = Msg, Extra, Acc) ->

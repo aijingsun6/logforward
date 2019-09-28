@@ -36,7 +36,7 @@ logforward 是一个erlang高性能的日志框架
 | time | 时间 | hh:mm:ss.SSS |
 | datetime | 时间 | yyyy-MM-dd hh:mm:ss.SSS |
 | msg | 消息体 | |
-| eol | 换行符 | "\r\n" |
+| eol | 换行符 | "\n" |
 | line | 行号 | |
 | level | 日志等级 | DEBUG,INFO...|
 | pid  | 进程名称 | |
